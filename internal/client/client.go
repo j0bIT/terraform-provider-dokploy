@@ -1035,41 +1035,79 @@ func (c *DokployClient) UpdateDomain(domain Domain) (*Domain, error) {
 // --- Environment Variable ---
 
 type EnvironmentVariable struct {
-	ID            string `json:"environmentVariableId"`
+	ID            string `json:"id"`
 	ApplicationID string `json:"applicationId"`
 	Key           string `json:"key"`
 	Value         string `json:"value"`
 	Scope         string `json:"scope"`
 }
 
-func (c *DokployClient) CreateVariable(appID, key, value, scope string) (*EnvironmentVariable, error) {
-	app, err := c.GetApplication(appID)
-	if err != nil {
-		return nil, err
-	}
+func (c *DokployClient) UpdateApplicationEnv(appID string, updateFn func(envMap map[string]string), createEnvFile *bool) error {
+	var lastErr error
+	for i := 0; i < 5; i++ { // Retry up to 5 times
+		app, err := c.GetApplication(appID)
+		if err != nil {
+			return err
+		}
 
-	envMap := parseEnv(app.Env)
-	envMap[key] = value
-	envStr := formatEnv(envMap)
+		envMap := ParseEnv(app.Env)
+		originalEnvStr := app.Env
 
-	payload := map[string]interface{}{
-		"applicationId": appID,
-		"env":           envStr,
-		"createEnvFile": true,
+		updateFn(envMap) // Modify the map
+
+		newEnvStr := formatEnv(envMap)
+
+		if newEnvStr == originalEnvStr {
+			return nil // No changes to be made
+		}
+
+		payload := map[string]interface{}{
+			"applicationId": appID,
+			"env":           newEnvStr,
+		}
+		if createEnvFile != nil {
+			payload["createEnvFile"] = *createEnvFile
+		}
+
+		_, err = c.doRequest("POST", "application.saveEnvironment", payload)
+		if err != nil {
+			lastErr = err
+			time.Sleep(time.Duration(100*(i+1)) * time.Millisecond) // Backoff
+			continue
+		}
+
+		// Verify write
+		verifyApp, err := c.GetApplication(appID)
+		if err != nil {
+			// If we can't verify, we have to assume it worked or retry
+			lastErr = fmt.Errorf("failed to verify environment update: %w", err)
+			time.Sleep(time.Duration(100*(i+1)) * time.Millisecond)
+			continue
+		}
+		if verifyApp.Env == newEnvStr {
+			return nil // Success
+		}
+		lastErr = fmt.Errorf("environment update conflict, retrying...")
 	}
-	_, err = c.doRequest("POST", "application.saveEnvironment", payload)
+	return lastErr
+}
+
+func (c *DokployClient) CreateVariable(appID, key, value, scope string, createEnvFile *bool) (*EnvironmentVariable, error) {
+	err := c.UpdateApplicationEnv(appID, func(envMap map[string]string) {
+		envMap[key] = value
+	}, createEnvFile)
+
 	if err != nil {
 		return nil, err
 	}
 
 	return &EnvironmentVariable{
-			ID:            appID + "_" + key,
-			ApplicationID: appID,
-			Key:           key,
-			Value:         value,
-			Scope:         scope,
-		},
-		nil
+		ID:            appID + "_" + key,
+		ApplicationID: appID,
+		Key:           key,
+		Value:         value,
+		Scope:         scope,
+	}, nil
 }
 
 func (c *DokployClient) GetVariablesByApplication(appID string) ([]EnvironmentVariable, error) {
@@ -1077,7 +1115,7 @@ func (c *DokployClient) GetVariablesByApplication(appID string) ([]EnvironmentVa
 	if err != nil {
 		return nil, err
 	}
-	envMap := parseEnv(app.Env)
+	envMap := ParseEnv(app.Env)
 	var vars []EnvironmentVariable
 	for k, v := range envMap {
 		vars = append(vars, EnvironmentVariable{
@@ -1085,39 +1123,25 @@ func (c *DokployClient) GetVariablesByApplication(appID string) ([]EnvironmentVa
 			ApplicationID: appID,
 			Key:           k,
 			Value:         v,
-			Scope:         "run_time",
+			Scope:         "runtime",
 		})
 	}
 	return vars, nil
 }
 
-func (c *DokployClient) DeleteVariable(id string) error {
+func (c *DokployClient) DeleteVariable(id string, createEnvFile *bool) error {
 	parts := strings.SplitN(id, "_", 2)
 	if len(parts) != 2 {
 		return fmt.Errorf("invalid variable ID format")
 	}
-	appID := parts[0]
-	key := parts[1]
+	appID, key := parts[0], parts[1]
 
-	app, err := c.GetApplication(appID)
-	if err != nil {
-		return err
-	}
-
-	envMap := parseEnv(app.Env)
-	delete(envMap, key)
-	envStr := formatEnv(envMap)
-
-	payload := map[string]interface{}{
-		"applicationId": appID,
-		"env":           envStr,
-		"createEnvFile": true,
-	}
-	_, err = c.doRequest("POST", "application.saveEnvironment", payload)
-	return err
+	return c.UpdateApplicationEnv(appID, func(envMap map[string]string) {
+		delete(envMap, key)
+	}, createEnvFile)
 }
 
-func parseEnv(env string) map[string]string {
+func ParseEnv(env string) map[string]string {
 	m := make(map[string]string)
 	if env == "" {
 		return m
