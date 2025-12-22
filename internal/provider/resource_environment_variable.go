@@ -103,12 +103,7 @@ func (r *EnvironmentVariableResource) Create(ctx context.Context, req resource.C
 	if err == nil {
 		for _, v := range vars {
 			if v.Key == plan.Key.ValueString() {
-				// Already exists, maybe we can just adopt it if values match? 
-				// But Create implies strictly creating.
-				// Dokploy might duplicate if we call create again? Or fail?
-				// Prompt says: "Note: Check strictly if API allows creating single variables."
-				// If it fails, we should handle it.
-				// For now, let's proceed to create.
+				resp.Diagnostics.AddWarning("Variable already exists", fmt.Sprintf("Environment variable with key '%s' already exists for application '%s'. It will be overwritten.", plan.Key.ValueString(), plan.ApplicationID.ValueString()))
 			}
 		}
 	}
@@ -160,7 +155,7 @@ func (r *EnvironmentVariableResource) Read(ctx context.Context, req resource.Rea
 	}
 
 	if !found {
-		// Fallback: match by key? 
+		// Fallback: match by key?
 		// If ID changed but key is same (recreated outside TF?)
 		// But ID is primary.
 		resp.State.RemoveResource(ctx)

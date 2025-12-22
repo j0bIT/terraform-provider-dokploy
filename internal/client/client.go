@@ -89,7 +89,7 @@ func (c *DokployClient) GetUser() (*User, error) {
 		// For now assuming simple case.
 		return &wrapper.User, nil
 	}
-	
+
 	// Try direct
 	var user User
 	if err := json.Unmarshal(resp, &user); err == nil && user.ID != "" {
@@ -259,13 +259,13 @@ type Application struct {
 	Domains           []Domain `json:"domains"`
 	AutoDeploy        bool     `json:"autoDeploy"`
 	// Enhanced fields
-	SourceType        string   `json:"sourceType"`
-	CustomGitUrl      string   `json:"customGitUrl"`
-	CustomGitBranch   string   `json:"customGitBranch"`
-	CustomGitSSHKeyId string   `json:"customGitSSHKeyId"`
-	CustomGitBuildPath string  `json:"customGitBuildPath"`
-	Username          string   `json:"username"`
-	Password          string   `json:"password"`
+	SourceType         string `json:"sourceType"`
+	CustomGitUrl       string `json:"customGitUrl"`
+	CustomGitBranch    string `json:"customGitBranch"`
+	CustomGitSSHKeyId  string `json:"customGitSSHKeyId"`
+	CustomGitBuildPath string `json:"customGitBuildPath"`
+	Username           string `json:"username"`
+	Password           string `json:"password"`
 }
 
 func (c *DokployClient) CreateApplication(app Application) (*Application, error) {
@@ -286,14 +286,14 @@ func (c *DokployClient) CreateApplication(app Application) (*Application, error)
 	if err := json.Unmarshal(resp, &wrapper); err != nil {
 		return nil, err
 	}
-	
+
 	createdApp := wrapper.Application
 	if createdApp.ID == "" {
 		if err := json.Unmarshal(resp, &createdApp); err != nil {
 			return nil, err
 		}
 	}
-	
+
 	// 2. Update with full configuration
 	updatePayload := map[string]interface{}{
 		"applicationId": createdApp.ID,
@@ -303,18 +303,38 @@ func (c *DokployClient) CreateApplication(app Application) (*Application, error)
 		"sourceType":    app.SourceType,
 		"autoDeploy":    app.AutoDeploy,
 	}
-	
-	if app.RepositoryURL != "" { updatePayload["repository"] = app.RepositoryURL }
-	if app.DockerfilePath != "" { updatePayload["dockerfile"] = app.DockerfilePath }
-	if app.DockerContextPath != "" { updatePayload["dockerContextPath"] = app.DockerContextPath }
-	if app.DockerBuildStage != "" { updatePayload["dockerBuildStage"] = app.DockerBuildStage }
-	if app.CustomGitUrl != "" { updatePayload["customGitUrl"] = app.CustomGitUrl }
-	if app.CustomGitBranch != "" { updatePayload["customGitBranch"] = app.CustomGitBranch }
-	if app.CustomGitSSHKeyId != "" { updatePayload["customGitSSHKeyId"] = app.CustomGitSSHKeyId }
-	if app.CustomGitBuildPath != "" { updatePayload["customGitBuildPath"] = app.CustomGitBuildPath }
-	if app.Username != "" { updatePayload["username"] = app.Username }
-	if app.Password != "" { updatePayload["password"] = app.Password }
-	
+
+	if app.RepositoryURL != "" {
+		updatePayload["repository"] = app.RepositoryURL
+	}
+	if app.DockerfilePath != "" {
+		updatePayload["dockerfile"] = app.DockerfilePath
+	}
+	if app.DockerContextPath != "" {
+		updatePayload["dockerContextPath"] = app.DockerContextPath
+	}
+	if app.DockerBuildStage != "" {
+		updatePayload["dockerBuildStage"] = app.DockerBuildStage
+	}
+	if app.CustomGitUrl != "" {
+		updatePayload["customGitUrl"] = app.CustomGitUrl
+	}
+	if app.CustomGitBranch != "" {
+		updatePayload["customGitBranch"] = app.CustomGitBranch
+	}
+	if app.CustomGitSSHKeyId != "" {
+		updatePayload["customGitSSHKeyId"] = app.CustomGitSSHKeyId
+	}
+	if app.CustomGitBuildPath != "" {
+		updatePayload["customGitBuildPath"] = app.CustomGitBuildPath
+	}
+	if app.Username != "" {
+		updatePayload["username"] = app.Username
+	}
+	if app.Password != "" {
+		updatePayload["password"] = app.Password
+	}
+
 	// Ensure defaults
 	if app.SourceType == "" {
 		if app.CustomGitUrl != "" {
@@ -360,25 +380,45 @@ func (c *DokployClient) GetApplication(id string) (*Application, error) {
 
 func (c *DokployClient) UpdateApplication(app Application) (*Application, error) {
 	payload := map[string]interface{}{
-		"applicationId":  app.ID,
-		"name":           app.Name,
-		"branch":         app.Branch,
-		"buildType":      app.BuildType,
-		"sourceType":     app.SourceType,
-		"autoDeploy":     app.AutoDeploy,
+		"applicationId": app.ID,
+		"name":          app.Name,
+		"branch":        app.Branch,
+		"buildType":     app.BuildType,
+		"sourceType":    app.SourceType,
+		"autoDeploy":    app.AutoDeploy,
 	}
 	// Optional fields
-	if app.RepositoryURL != "" { payload["repository"] = app.RepositoryURL }
-	if app.DockerfilePath != "" { payload["dockerfile"] = app.DockerfilePath }
-	if app.DockerContextPath != "" { payload["dockerContextPath"] = app.DockerContextPath }
-	if app.DockerBuildStage != "" { payload["dockerBuildStage"] = app.DockerBuildStage }
-	if app.CustomGitUrl != "" { payload["customGitUrl"] = app.CustomGitUrl }
-	if app.CustomGitBranch != "" { payload["customGitBranch"] = app.CustomGitBranch }
-	if app.CustomGitSSHKeyId != "" { payload["customGitSSHKeyId"] = app.CustomGitSSHKeyId }
-	if app.CustomGitBuildPath != "" { payload["customGitBuildPath"] = app.CustomGitBuildPath }
-	if app.Username != "" { payload["username"] = app.Username }
-	if app.Password != "" { payload["password"] = app.Password }
-	
+	if app.RepositoryURL != "" {
+		payload["repository"] = app.RepositoryURL
+	}
+	if app.DockerfilePath != "" {
+		payload["dockerfile"] = app.DockerfilePath
+	}
+	if app.DockerContextPath != "" {
+		payload["dockerContextPath"] = app.DockerContextPath
+	}
+	if app.DockerBuildStage != "" {
+		payload["dockerBuildStage"] = app.DockerBuildStage
+	}
+	if app.CustomGitUrl != "" {
+		payload["customGitUrl"] = app.CustomGitUrl
+	}
+	if app.CustomGitBranch != "" {
+		payload["customGitBranch"] = app.CustomGitBranch
+	}
+	if app.CustomGitSSHKeyId != "" {
+		payload["customGitSSHKeyId"] = app.CustomGitSSHKeyId
+	}
+	if app.CustomGitBuildPath != "" {
+		payload["customGitBuildPath"] = app.CustomGitBuildPath
+	}
+	if app.Username != "" {
+		payload["username"] = app.Username
+	}
+	if app.Password != "" {
+		payload["password"] = app.Password
+	}
+
 	if app.EnvironmentID != "" {
 		payload["environmentId"] = app.EnvironmentID
 	}
@@ -414,17 +454,17 @@ func (c *DokployClient) DeployApplication(id string) error {
 // --- Compose ---
 
 type Compose struct {
-	ID                string `json:"composeId"`
-	Name              string `json:"name"`
-	ProjectID         string `json:"projectId"`
-	EnvironmentID     string `json:"environmentId"`
-	ComposeFile       string `json:"composeFile"`
-	SourceType        string `json:"sourceType"`
-	CustomGitUrl      string `json:"customGitUrl"`
-	CustomGitBranch   string `json:"customGitBranch"`
-	CustomGitSSHKeyId string `json:"customGitSSHKeyId"`
-	ComposePath       string `json:"composePath"`
-	AutoDeploy        bool   `json:"autoDeploy"`
+	ID                string   `json:"composeId"`
+	Name              string   `json:"name"`
+	ProjectID         string   `json:"projectId"`
+	EnvironmentID     string   `json:"environmentId"`
+	ComposeFile       string   `json:"composeFile"`
+	SourceType        string   `json:"sourceType"`
+	CustomGitUrl      string   `json:"customGitUrl"`
+	CustomGitBranch   string   `json:"customGitBranch"`
+	CustomGitSSHKeyId string   `json:"customGitSSHKeyId"`
+	ComposePath       string   `json:"composePath"`
+	AutoDeploy        bool     `json:"autoDeploy"`
 	Domains           []Domain `json:"domains"`
 }
 
@@ -436,7 +476,7 @@ func (c *DokployClient) CreateCompose(comp Compose) (*Compose, error) {
 		"composeType":   "docker-compose",
 		"appName":       comp.Name,
 	}
-	
+
 	// If raw content provided, include it
 	if comp.ComposeFile != "" {
 		payload["composeFile"] = comp.ComposeFile
@@ -453,7 +493,7 @@ func (c *DokployClient) CreateCompose(comp Compose) (*Compose, error) {
 	if err := json.Unmarshal(resp, &wrapper); err == nil && wrapper.Compose.ID != "" {
 		return &wrapper.Compose, nil
 	}
-	
+
 	createdComp := wrapper.Compose
 	if createdComp.ID == "" {
 		if err := json.Unmarshal(resp, &createdComp); err != nil {
@@ -468,12 +508,22 @@ func (c *DokployClient) CreateCompose(comp Compose) (*Compose, error) {
 		"sourceType": comp.SourceType,
 		"autoDeploy": comp.AutoDeploy,
 	}
-	
-	if comp.CustomGitUrl != "" { updatePayload["customGitUrl"] = comp.CustomGitUrl }
-	if comp.CustomGitBranch != "" { updatePayload["customGitBranch"] = comp.CustomGitBranch }
-	if comp.CustomGitSSHKeyId != "" { updatePayload["customGitSSHKeyId"] = comp.CustomGitSSHKeyId }
-	if comp.ComposePath != "" { updatePayload["composePath"] = comp.ComposePath }
-	if comp.ComposeFile != "" { updatePayload["composeFile"] = comp.ComposeFile }
+
+	if comp.CustomGitUrl != "" {
+		updatePayload["customGitUrl"] = comp.CustomGitUrl
+	}
+	if comp.CustomGitBranch != "" {
+		updatePayload["customGitBranch"] = comp.CustomGitBranch
+	}
+	if comp.CustomGitSSHKeyId != "" {
+		updatePayload["customGitSSHKeyId"] = comp.CustomGitSSHKeyId
+	}
+	if comp.ComposePath != "" {
+		updatePayload["composePath"] = comp.ComposePath
+	}
+	if comp.ComposeFile != "" {
+		updatePayload["composeFile"] = comp.ComposeFile
+	}
 
 	if comp.SourceType == "" {
 		if comp.CustomGitUrl != "" {
@@ -525,13 +575,23 @@ func (c *DokployClient) UpdateCompose(comp Compose) (*Compose, error) {
 		"sourceType": comp.SourceType,
 		"autoDeploy": comp.AutoDeploy,
 	}
-	
-	if comp.CustomGitUrl != "" { payload["customGitUrl"] = comp.CustomGitUrl }
-	if comp.CustomGitBranch != "" { payload["customGitBranch"] = comp.CustomGitBranch }
-	if comp.CustomGitSSHKeyId != "" { payload["customGitSSHKeyId"] = comp.CustomGitSSHKeyId }
-	if comp.ComposePath != "" { payload["composePath"] = comp.ComposePath }
-	if comp.ComposeFile != "" { payload["composeFile"] = comp.ComposeFile }
-	
+
+	if comp.CustomGitUrl != "" {
+		payload["customGitUrl"] = comp.CustomGitUrl
+	}
+	if comp.CustomGitBranch != "" {
+		payload["customGitBranch"] = comp.CustomGitBranch
+	}
+	if comp.CustomGitSSHKeyId != "" {
+		payload["customGitSSHKeyId"] = comp.CustomGitSSHKeyId
+	}
+	if comp.ComposePath != "" {
+		payload["composePath"] = comp.ComposePath
+	}
+	if comp.ComposeFile != "" {
+		payload["composeFile"] = comp.ComposeFile
+	}
+
 	if comp.EnvironmentID != "" {
 		payload["environmentId"] = comp.EnvironmentID
 	}
@@ -577,7 +637,7 @@ type Database struct {
 	DockerImage   string `json:"dockerImage"`
 	ExternalPort  int64  `json:"externalPort"`
 	InternalPort  int64  `json:"internalPort"`
-	Password      string	`json:"password"`
+	Password      string `json:"password"`
 	PostgresID    string `json:"postgresId"`
 	MysqlID       string `json:"mysqlId"`
 	MariadbID     string `json:"mariadbId"`
@@ -646,13 +706,25 @@ func (c *DokployClient) CreateDatabase(projectID, environmentID, name, dbType, p
 				for _, db := range dbs {
 					if db.Name == name || db.AppName == name {
 						id := db.PostgresID
-						if db.MysqlID != "" { id = db.MysqlID }
-						if db.MariadbID != "" { id = db.MariadbID }
-						if db.MongoID != "" { id = db.MongoID }
-						if db.RedisID != "" { id = db.RedisID }
-						if id != "" { db.ID = id }
-						
-						if db.Type == "" { db.Type = dbType }
+						if db.MysqlID != "" {
+							id = db.MysqlID
+						}
+						if db.MariadbID != "" {
+							id = db.MariadbID
+						}
+						if db.MongoID != "" {
+							id = db.MongoID
+						}
+						if db.RedisID != "" {
+							id = db.RedisID
+						}
+						if id != "" {
+							db.ID = id
+						}
+
+						if db.Type == "" {
+							db.Type = dbType
+						}
 						return &db, nil
 					}
 				}
@@ -702,46 +774,73 @@ func (c *DokployClient) GetDatabase(dbID string, databaseType string) (*Database
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var db Database
 	if err := json.Unmarshal(resp, &db); err == nil {
 		valid := false
-		if db.ID != "" { valid = true }
-		if db.PostgresID != "" { valid = true }
-		if db.MysqlID != "" { valid = true }
-		if db.MariadbID != "" { valid = true }
-		if db.MongoID != "" { valid = true }
-		if db.RedisID != "" { valid = true }
-		
+		if db.ID != "" {
+			valid = true
+		}
+		if db.PostgresID != "" {
+			valid = true
+		}
+		if db.MysqlID != "" {
+			valid = true
+		}
+		if db.MariadbID != "" {
+			valid = true
+		}
+		if db.MongoID != "" {
+			valid = true
+		}
+		if db.RedisID != "" {
+			valid = true
+		}
+
 		if valid {
 			if db.ID == "" {
-				if db.PostgresID != "" { db.ID = db.PostgresID }
-				if db.MysqlID != "" { db.ID = db.MysqlID }
-				if db.MariadbID != "" { db.ID = db.MariadbID }
-				if db.MongoID != "" { db.ID = db.MongoID }
-				if db.RedisID != "" { db.ID = db.RedisID }
+				if db.PostgresID != "" {
+					db.ID = db.PostgresID
+				}
+				if db.MysqlID != "" {
+					db.ID = db.MysqlID
+				}
+				if db.MariadbID != "" {
+					db.ID = db.MariadbID
+				}
+				if db.MongoID != "" {
+					db.ID = db.MongoID
+				}
+				if db.RedisID != "" {
+					db.ID = db.RedisID
+				}
 			}
 			db.Type = databaseType
 			return &db, nil
 		}
 	}
-	
+
 	var result map[string]json.RawMessage
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, err
 	}
-	
+
 	var dbBytes json.RawMessage
 	var ok bool
-	
+
 	switch databaseType {
-	case "postgres": dbBytes, ok = result["postgres"]
-	case "mysql": dbBytes, ok = result["mysql"]
-	case "mariadb": dbBytes, ok = result["mariadb"]
-	case "mongo": dbBytes, ok = result["mongo"]
-	case "redis": dbBytes, ok = result["redis"]
+	case "postgres":
+		dbBytes, ok = result["postgres"]
+	case "mysql":
+		dbBytes, ok = result["mysql"]
+	case "mariadb":
+		dbBytes, ok = result["mariadb"]
+	case "mongo":
+		dbBytes, ok = result["mongo"]
+	case "redis":
+		dbBytes, ok = result["redis"]
 	}
-	
+
 	if !ok {
 		if val, found := result["database"]; found {
 			dbBytes = val
@@ -749,20 +848,30 @@ func (c *DokployClient) GetDatabase(dbID string, databaseType string) (*Database
 			return nil, fmt.Errorf("database key not found in response for type %s", databaseType)
 		}
 	}
-	
+
 	if err := json.Unmarshal(dbBytes, &db); err != nil {
 		return nil, err
 	}
-	
+
 	if db.ID == "" {
-		if db.PostgresID != "" { db.ID = db.PostgresID }
-		if db.MysqlID != "" { db.ID = db.MysqlID }
-		if db.MariadbID != "" { db.ID = db.MariadbID }
-		if db.MongoID != "" { db.ID = db.MongoID }
-		if db.RedisID != "" { db.ID = db.RedisID }
+		if db.PostgresID != "" {
+			db.ID = db.PostgresID
+		}
+		if db.MysqlID != "" {
+			db.ID = db.MysqlID
+		}
+		if db.MariadbID != "" {
+			db.ID = db.MariadbID
+		}
+		if db.MongoID != "" {
+			db.ID = db.MongoID
+		}
+		if db.RedisID != "" {
+			db.ID = db.RedisID
+		}
 	}
 	db.Type = databaseType
-	
+
 	return &db, nil
 }
 
@@ -815,14 +924,20 @@ type Domain struct {
 
 func (c *DokployClient) CreateDomain(domain Domain) (*Domain, error) {
 	payload := map[string]interface{}{
-		"host":          domain.Host,
-		"path":          domain.Path,
-		"port":          domain.Port,
-		"https":         domain.HTTPS,
+		"host":  domain.Host,
+		"path":  domain.Path,
+		"port":  domain.Port,
+		"https": domain.HTTPS,
 	}
-	if domain.ApplicationID != "" { payload["applicationId"] = domain.ApplicationID }
-	if domain.ComposeID != "" { payload["composeId"] = domain.ComposeID }
-	if domain.ServiceName != "" { payload["serviceName"] = domain.ServiceName }
+	if domain.ApplicationID != "" {
+		payload["applicationId"] = domain.ApplicationID
+	}
+	if domain.ComposeID != "" {
+		payload["composeId"] = domain.ComposeID
+	}
+	if domain.ServiceName != "" {
+		payload["serviceName"] = domain.ServiceName
+	}
 
 	resp, err := c.doRequest("POST", "domain.create", payload)
 	if err != nil {
@@ -845,13 +960,17 @@ func (c *DokployClient) CreateDomain(domain Domain) (*Domain, error) {
 
 func (c *DokployClient) GetDomainsByApplication(appID string) ([]Domain, error) {
 	app, err := c.GetApplication(appID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return app.Domains, nil
 }
 
 func (c *DokployClient) GetDomainsByCompose(composeID string) ([]Domain, error) {
 	comp, err := c.GetCompose(composeID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return comp.Domains, nil
 }
 
@@ -944,13 +1063,13 @@ func (c *DokployClient) CreateVariable(appID, key, value, scope string) (*Enviro
 	}
 
 	return &EnvironmentVariable{
-		ID:            appID + "_" + key,
-		ApplicationID: appID,
-		Key:           key,
-		Value:         value,
-		Scope:         scope,
-	},
-	nil
+			ID:            appID + "_" + key,
+			ApplicationID: appID,
+			Key:           key,
+			Value:         value,
+			Scope:         scope,
+		},
+		nil
 }
 
 func (c *DokployClient) GetVariablesByApplication(appID string) ([]EnvironmentVariable, error) {
@@ -1041,7 +1160,7 @@ func (c *DokployClient) CreateSSHKey(name, description, privateKey, publicKey st
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user for organization ID: %w", err)
 	}
-	
+
 	payload := map[string]string{
 		"name":           name,
 		"description":    description,
@@ -1049,7 +1168,7 @@ func (c *DokployClient) CreateSSHKey(name, description, privateKey, publicKey st
 		"publicKey":      publicKey,
 		"organizationId": user.OrganizationID,
 	}
-	
+
 	resp, err := c.doRequest("POST", "sshKey.create", payload)
 	if err != nil {
 		return nil, err
@@ -1066,7 +1185,7 @@ func (c *DokployClient) CreateSSHKey(name, description, privateKey, publicKey st
 	if err := json.Unmarshal(resp, &wrapper); err == nil && wrapper.SSHKey.ID != "" {
 		return &wrapper.SSHKey, nil
 	}
-	
+
 	var result SSHKey
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, err
@@ -1074,7 +1193,7 @@ func (c *DokployClient) CreateSSHKey(name, description, privateKey, publicKey st
 	if result.ID == "" {
 		return c.findSSHKeyByName(name)
 	}
-	
+
 	// Fallback to list lookup if unmarshal failed to produce ID
 	return &result, nil
 }
@@ -1084,19 +1203,19 @@ func (c *DokployClient) ListSSHKeys() ([]SSHKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var wrapper struct {
 		SSHKeys []SSHKey `json:"sshKeys"` // Guessing wrapper
 	}
 	if err := json.Unmarshal(resp, &wrapper); err == nil && wrapper.SSHKeys != nil {
 		return wrapper.SSHKeys, nil
 	}
-	
+
 	var list []SSHKey
 	if err := json.Unmarshal(resp, &list); err == nil {
 		return list, nil
 	}
-	
+
 	return nil, fmt.Errorf("failed to parse sshKey.all response")
 }
 

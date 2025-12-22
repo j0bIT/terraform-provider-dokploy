@@ -228,7 +228,7 @@ func (r *ApplicationResource) Create(ctx context.Context, req resource.CreateReq
 	if createdApp.DockerBuildStage != "" {
 		plan.DockerBuildStage = types.StringValue(createdApp.DockerBuildStage)
 	}
-	
+
 	plan.AutoDeploy = types.BoolValue(createdApp.AutoDeploy)
 
 	if !plan.DeployOnCreate.IsNull() && plan.DeployOnCreate.ValueBool() {
@@ -306,7 +306,7 @@ func (r *ApplicationResource) Read(ctx context.Context, req resource.ReadRequest
 	if app.Username != "" {
 		state.Username = types.StringValue(app.Username)
 	}
-	
+
 	state.AutoDeploy = types.BoolValue(app.AutoDeploy)
 	// Don't read password back if not returned or hashed
 

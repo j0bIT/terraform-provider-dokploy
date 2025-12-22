@@ -88,11 +88,11 @@ func (r *DomainResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Computed: true,
 			},
 			"generate_traefik_me": schema.BoolAttribute{
-				Optional: true,
+				Optional:    true,
 				Description: "If true, generates a traefik.me domain for the application.",
 			},
 			"redeploy_on_update": schema.BoolAttribute{
-				Optional: true,
+				Optional:    true,
 				Description: "If true, triggers a redeploy of the associated application or compose stack when the domain is created or updated.",
 			},
 		},
@@ -142,7 +142,7 @@ func (r *DomainResource) Create(ctx context.Context, req resource.CreateRequest,
 			}
 			name = comp.Name
 		}
-		
+
 		generatedDomain, err := r.client.GenerateDomain(name)
 		if err != nil {
 			resp.Diagnostics.AddError("Error generating traefik.me domain", err.Error())

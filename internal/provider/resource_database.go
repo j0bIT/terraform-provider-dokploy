@@ -26,15 +26,15 @@ type DatabaseResource struct {
 }
 
 type DatabaseResourceModel struct {
-	ID           types.String `tfsdk:"id"`
-	ProjectID    types.String `tfsdk:"project_id"`
+	ID            types.String `tfsdk:"id"`
+	ProjectID     types.String `tfsdk:"project_id"`
 	EnvironmentID types.String `tfsdk:"environment_id"`
-	Type         types.String `tfsdk:"type"`
-	Name         types.String `tfsdk:"name"`
-	Password     types.String `tfsdk:"password"`
-	Version      types.String `tfsdk:"version"`
-	InternalPort types.Int64  `tfsdk:"internal_port"`
-	ExternalPort types.Int64  `tfsdk:"external_port"`
+	Type          types.String `tfsdk:"type"`
+	Name          types.String `tfsdk:"name"`
+	Password      types.String `tfsdk:"password"`
+	Version       types.String `tfsdk:"version"`
+	InternalPort  types.Int64  `tfsdk:"internal_port"`
+	ExternalPort  types.Int64  `tfsdk:"external_port"`
 }
 
 func (r *DatabaseResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {

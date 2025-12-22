@@ -92,7 +92,7 @@ func (r *EnvironmentResource) Create(ctx context.Context, req resource.CreateReq
 				resp.Diagnostics.AddError("Error creating environment (and failed to fetch project for recovery)", fmt.Sprintf("Create error: %s. Fetch error: %s", err, pErr))
 				return
 			}
-			
+
 			// Find env by name
 			found := false
 			for _, e := range project.Environments {
@@ -103,7 +103,7 @@ func (r *EnvironmentResource) Create(ctx context.Context, req resource.CreateReq
 					break
 				}
 			}
-			
+
 			if !found {
 				resp.Diagnostics.AddError("Error creating environment", fmt.Sprintf("API reported duplicate, but could not find environment with name '%s' in project '%s'. Original error: %s", plan.Name.ValueString(), plan.ProjectID.ValueString(), err))
 				return
