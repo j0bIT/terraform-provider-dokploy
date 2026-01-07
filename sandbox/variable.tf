@@ -36,3 +36,12 @@ variable "compose_service_name" {
   type        = string
   description = "The name of the service within the compose stack to associate with the domain"
 }
+variable "github_app_id" {
+  type        = string
+  description = "GitHub App Installation ID for Dokploy"
+}
+
+variable "github_repository" {
+  type        = string
+  description = "GitHub repository name (without owner)"
+}

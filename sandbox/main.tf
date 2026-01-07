@@ -96,7 +96,36 @@ resource "dokploy_domain" "app_domain" {
   redeploy_on_update  = true
 }
 
+# Deploy an Application using GitHub Provider
+resource "dokploy_application" "github_app" {
+  name                 = "github-app"
+  project_id           = dokploy_project.main.id
+  environment_id       = dokploy_environment.staging.id
+  
+  # GitHub Provider settings
+  github_id            = var.github_app_id
+  github_owner         = var.github_owner
+  github_repository    = var.github_repository
+  github_branch        = "main"
+  github_build_path    = "./"
+  enable_submodules    = false
+  trigger_type         = "tag"
+  github_watch_paths   = ["src/**", "package.json"]
+  
+  build_type           = "dockerfile"
+  auto_deploy          = true
+  deploy_on_create     = false
+}
 
+# Configure a Domain for the GitHub Application
+resource "dokploy_domain" "github_app_domain" {
+  application_id      = dokploy_application.github_app.id
+  generate_traefik_me = true
+  path                = "/"
+  port                = 3000
+  https               = false
+  redeploy_on_update  = true
+}
 
 resource "dokploy_environment_variables" "app_vars" {
   application_id = dokploy_application.web_app.id

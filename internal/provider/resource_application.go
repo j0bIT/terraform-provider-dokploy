@@ -45,6 +45,15 @@ type ApplicationResourceModel struct {
 	Password           types.String `tfsdk:"password"`
 	AutoDeploy         types.Bool   `tfsdk:"auto_deploy"`
 	DeployOnCreate     types.Bool   `tfsdk:"deploy_on_create"`
+	// GitHub Provider fields
+	GithubRepository types.String `tfsdk:"github_repository"`
+	GithubOwner      types.String `tfsdk:"github_owner"`
+	GithubBranch     types.String `tfsdk:"github_branch"`
+	GithubBuildPath  types.String `tfsdk:"github_build_path"`
+	GithubID         types.String `tfsdk:"github_id"`
+	GithubWatchPaths types.List   `tfsdk:"github_watch_paths"`
+	EnableSubmodules types.Bool   `tfsdk:"enable_submodules"`
+	TriggerType      types.String `tfsdk:"trigger_type"`
 }
 
 func (r *ApplicationResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -123,6 +132,31 @@ func (r *ApplicationResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Computed: true,
 			},
 			"deploy_on_create": schema.BoolAttribute{
+				Optional: true,
+			},
+			"github_repository": schema.StringAttribute{
+				Optional: true,
+			},
+			"github_owner": schema.StringAttribute{
+				Optional: true,
+			},
+			"github_branch": schema.StringAttribute{
+				Optional: true,
+			},
+			"github_build_path": schema.StringAttribute{
+				Optional: true,
+			},
+			"github_id": schema.StringAttribute{
+				Optional: true,
+			},
+			"github_watch_paths": schema.ListAttribute{
+				ElementType: types.StringType,
+				Optional:    true,
+			},
+			"enable_submodules": schema.BoolAttribute{
+				Optional: true,
+			},
+			"trigger_type": schema.StringAttribute{
 				Optional: true,
 			},
 		},
@@ -231,6 +265,49 @@ func (r *ApplicationResource) Create(ctx context.Context, req resource.CreateReq
 
 	plan.AutoDeploy = types.BoolValue(createdApp.AutoDeploy)
 
+	// Save GitHub provider if GitHub fields are provided
+	if !plan.GithubID.IsNull() && !plan.GithubID.IsUnknown() && plan.GithubID.ValueString() != "" {
+		githubConfig := map[string]interface{}{
+			"enableSubmodules": plan.EnableSubmodules.ValueBool(),
+		}
+
+		if !plan.GithubRepository.IsNull() && !plan.GithubRepository.IsUnknown() {
+			githubConfig["repository"] = plan.GithubRepository.ValueString()
+		}
+		if !plan.GithubBranch.IsNull() && !plan.GithubBranch.IsUnknown() {
+			githubConfig["branch"] = plan.GithubBranch.ValueString()
+		}
+		if !plan.GithubOwner.IsNull() && !plan.GithubOwner.IsUnknown() {
+			githubConfig["owner"] = plan.GithubOwner.ValueString()
+		}
+		if !plan.GithubBuildPath.IsNull() && !plan.GithubBuildPath.IsUnknown() {
+			githubConfig["buildPath"] = plan.GithubBuildPath.ValueString()
+		}
+		if !plan.GithubID.IsNull() && !plan.GithubID.IsUnknown() {
+			githubConfig["githubId"] = plan.GithubID.ValueString()
+		}
+		if !plan.TriggerType.IsNull() && !plan.TriggerType.IsUnknown() {
+			githubConfig["triggerType"] = plan.TriggerType.ValueString()
+		} else {
+			githubConfig["triggerType"] = "push"
+		}
+
+		// Handle watchPaths list
+		if !plan.GithubWatchPaths.IsNull() && !plan.GithubWatchPaths.IsUnknown() {
+			var watchPaths []string
+			diags := plan.GithubWatchPaths.ElementsAs(ctx, &watchPaths, false)
+			if !diags.HasError() && len(watchPaths) > 0 {
+				githubConfig["watchPaths"] = watchPaths
+			}
+		}
+
+		err := r.client.SaveGithubProvider(createdApp.ID, githubConfig)
+		if err != nil {
+			resp.Diagnostics.AddWarning("GitHub Provider Setup Failed",
+				fmt.Sprintf("Application created but GitHub provider configuration failed: %s", err.Error()))
+		}
+	}
+
 	if !plan.DeployOnCreate.IsNull() && plan.DeployOnCreate.ValueBool() {
 		err := r.client.DeployApplication(createdApp.ID)
 		if err != nil {
@@ -310,6 +387,33 @@ func (r *ApplicationResource) Read(ctx context.Context, req resource.ReadRequest
 	state.AutoDeploy = types.BoolValue(app.AutoDeploy)
 	// Don't read password back if not returned or hashed
 
+	// Map GitHub Provider fields
+	if app.GithubRepository != "" {
+		state.GithubRepository = types.StringValue(app.GithubRepository)
+	}
+	if app.GithubOwner != "" {
+		state.GithubOwner = types.StringValue(app.GithubOwner)
+	}
+	if app.GithubBranch != "" {
+		state.GithubBranch = types.StringValue(app.GithubBranch)
+	}
+	if app.GithubBuildPath != "" {
+		state.GithubBuildPath = types.StringValue(app.GithubBuildPath)
+	}
+	if app.GithubID != "" {
+		state.GithubID = types.StringValue(app.GithubID)
+	}
+	if app.TriggerType != "" {
+		state.TriggerType = types.StringValue(app.TriggerType)
+	}
+	if len(app.GithubWatchPaths) > 0 {
+		watchPathsList, diags := types.ListValueFrom(ctx, types.StringType, app.GithubWatchPaths)
+		if !diags.HasError() {
+			state.GithubWatchPaths = watchPathsList
+		}
+	}
+	state.EnableSubmodules = types.BoolValue(app.EnableSubmodules)
+
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 }
@@ -368,6 +472,49 @@ func (r *ApplicationResource) Update(ctx context.Context, req resource.UpdateReq
 	plan.Name = types.StringValue(updatedApp.Name)
 	plan.EnvironmentID = types.StringValue(updatedApp.EnvironmentID)
 	plan.AutoDeploy = types.BoolValue(updatedApp.AutoDeploy)
+
+	// Update GitHub provider if GitHub fields are provided
+	if !plan.GithubID.IsNull() && !plan.GithubID.IsUnknown() && plan.GithubID.ValueString() != "" {
+		githubConfig := map[string]interface{}{
+			"enableSubmodules": plan.EnableSubmodules.ValueBool(),
+		}
+
+		if !plan.GithubRepository.IsNull() && !plan.GithubRepository.IsUnknown() {
+			githubConfig["repository"] = plan.GithubRepository.ValueString()
+		}
+		if !plan.GithubBranch.IsNull() && !plan.GithubBranch.IsUnknown() {
+			githubConfig["branch"] = plan.GithubBranch.ValueString()
+		}
+		if !plan.GithubOwner.IsNull() && !plan.GithubOwner.IsUnknown() {
+			githubConfig["owner"] = plan.GithubOwner.ValueString()
+		}
+		if !plan.GithubBuildPath.IsNull() && !plan.GithubBuildPath.IsUnknown() {
+			githubConfig["buildPath"] = plan.GithubBuildPath.ValueString()
+		}
+		if !plan.GithubID.IsNull() && !plan.GithubID.IsUnknown() {
+			githubConfig["githubId"] = plan.GithubID.ValueString()
+		}
+		if !plan.TriggerType.IsNull() && !plan.TriggerType.IsUnknown() {
+			githubConfig["triggerType"] = plan.TriggerType.ValueString()
+		} else {
+			githubConfig["triggerType"] = "push"
+		}
+
+		// Handle watchPaths list
+		if !plan.GithubWatchPaths.IsNull() && !plan.GithubWatchPaths.IsUnknown() {
+			var watchPaths []string
+			diags := plan.GithubWatchPaths.ElementsAs(ctx, &watchPaths, false)
+			if !diags.HasError() && len(watchPaths) > 0 {
+				githubConfig["watchPaths"] = watchPaths
+			}
+		}
+
+		err := r.client.SaveGithubProvider(updatedApp.ID, githubConfig)
+		if err != nil {
+			resp.Diagnostics.AddWarning("GitHub Provider Update Failed",
+				fmt.Sprintf("Application updated but GitHub provider configuration failed: %s", err.Error()))
+		}
+	}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)

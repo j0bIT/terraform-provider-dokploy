@@ -40,6 +40,5 @@ terraform-provider-dokploy
 sandbox/terraform.tfvars
 sandbox/.terraform.lock.hcl
 sandbox/.terraform/
-sandbox/dev.tfrc
 
 openapi.json

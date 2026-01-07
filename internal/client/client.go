@@ -266,6 +266,15 @@ type Application struct {
 	CustomGitBuildPath string `json:"customGitBuildPath"`
 	Username           string `json:"username"`
 	Password           string `json:"password"`
+	// GitHub Provider fields
+	GithubRepository string   `json:"githubRepository"`
+	GithubOwner      string   `json:"owner"`
+	GithubBranch     string   `json:"githubBranch"`
+	GithubBuildPath  string   `json:"buildPath"`
+	GithubID         string   `json:"githubId"`
+	GithubWatchPaths []string `json:"watchPaths"`
+	EnableSubmodules bool     `json:"enableSubmodules"`
+	TriggerType      string   `json:"triggerType"`
 }
 
 func (c *DokployClient) CreateApplication(app Application) (*Application, error) {
@@ -440,6 +449,20 @@ func (c *DokployClient) DeleteApplication(id string) error {
 		"applicationId": id,
 	}
 	_, err := c.doRequest("POST", "application.remove", payload)
+	return err
+}
+
+func (c *DokployClient) SaveGithubProvider(appID string, githubConfig map[string]interface{}) error {
+	payload := map[string]interface{}{
+		"applicationId": appID,
+	}
+
+	// Add all github provider fields
+	for key, value := range githubConfig {
+		payload[key] = value
+	}
+
+	_, err := c.doRequest("POST", "application.saveGithubProvider", payload)
 	return err
 }
 
@@ -725,7 +748,10 @@ func (c *DokployClient) CreateDatabase(projectID, environmentID, name, dbType, p
 						if db.Type == "" {
 							db.Type = dbType
 						}
-						return &db, nil
+
+						// Create a copy to return
+						result := db
+						return &result, nil
 					}
 				}
 			}

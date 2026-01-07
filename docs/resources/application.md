@@ -33,10 +33,18 @@ description: |-
 - `docker_build_stage` (String)
 - `docker_context_path` (String)
 - `dockerfile_path` (String)
+- `enable_submodules` (Boolean)
 - `environment_id` (String)
+- `github_branch` (String)
+- `github_build_path` (String)
+- `github_id` (String)
+- `github_owner` (String)
+- `github_repository` (String)
+- `github_watch_paths` (List of String)
 - `password` (String, Sensitive)
 - `repository_url` (String)
 - `source_type` (String)
+- `trigger_type` (String)
 - `username` (String)
 
 ### Read-Only
