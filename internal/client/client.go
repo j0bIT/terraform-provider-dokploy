@@ -627,51 +627,106 @@ func (c *DokployClient) DeployCompose(id string) error {
 // --- Database ---
 
 type Database struct {
-	ID            string `json:"databaseId"`
-	Name          string `json:"name"`
-	AppName       string `json:"appName"`
-	Type          string `json:"type"`
-	ProjectID     string `json:"projectId"`
-	EnvironmentID string `json:"environmentId"`
-	Version       string `json:"version"`
-	DockerImage   string `json:"dockerImage"`
-	ExternalPort  int64  `json:"externalPort"`
-	InternalPort  int64  `json:"internalPort"`
-	Password      string `json:"password"`
-	PostgresID    string `json:"postgresId"`
-	MysqlID       string `json:"mysqlId"`
-	MariadbID     string `json:"mariadbId"`
-	MongoID       string `json:"mongoId"`
-	RedisID       string `json:"redisId"`
+	ID                   string                   `json:"databaseId"`
+	Name                 string                   `json:"name"`
+	AppName              string                   `json:"appName"`
+	Type                 string                   `json:"type"`
+	ProjectID            string                   `json:"projectId"`
+	EnvironmentID        string                   `json:"environmentId"`
+	Description          string                   `json:"description"`
+	DatabaseName         string                   `json:"databaseName"`
+	DatabaseUser         string                   `json:"databaseUser"`
+	DatabaseRootPassword string                   `json:"databaseRootPassword"`
+	DockerImage          string                   `json:"dockerImage"`
+	ExternalPort         int64                    `json:"externalPort"`
+	InternalPort         int64                    `json:"internalPort"`
+	ServerID             string                   `json:"serverId"`
+	ApplicationStatus    string                   `json:"applicationStatus"`
+	ReplicaSets          bool                     `json:"replicaSets"`
+	Env                  string                   `json:"env"`
+	MemoryReservation    string                   `json:"memoryReservation"`
+	MemoryLimit          string                   `json:"memoryLimit"`
+	CPUReservation       string                   `json:"cpuReservation"`
+	CPULimit             string                   `json:"cpuLimit"`
+	Command              string                   `json:"command"`
+	Args                 []string                 `json:"args"`
+	Replicas             int64                    `json:"replicas"`
+	HealthCheckSwarm     map[string]interface{}   `json:"healthCheckSwarm"`
+	RestartPolicySwarm   map[string]interface{}   `json:"restartPolicySwarm"`
+	PlacementSwarm       map[string]interface{}   `json:"placementSwarm"`
+	UpdateConfigSwarm    map[string]interface{}   `json:"updateConfigSwarm"`
+	RollbackConfigSwarm  map[string]interface{}   `json:"rollbackConfigSwarm"`
+	ModeSwarm            map[string]interface{}   `json:"modeSwarm"`
+	LabelsSwarm          map[string]string        `json:"labelsSwarm"`
+	NetworkSwarm         []map[string]interface{} `json:"networkSwarm"`
+	StopGracePeriodSwarm int64                    `json:"stopGracePeriodSwarm"`
+	EndpointSpecSwarm    map[string]interface{}   `json:"endpointSpecSwarm"`
+	PostgresID           string                   `json:"postgresId"`
+	MysqlID              string                   `json:"mysqlId"`
+	MariadbID            string                   `json:"mariadbId"`
+	MongoID              string                   `json:"mongoId"`
+	RedisID              string                   `json:"redisId"`
 }
 
-func (c *DokployClient) CreateDatabase(projectID, environmentID, name, dbType, password, dockerImage string) (*Database, error) {
+func (c *DokployClient) CreateDatabase(environmentID, dbType, appName, name, description, databaseName, databaseUser, databasePassword, databaseRootPassword, dockerImage, serverID string, replicaSets bool, args []string) (*Database, error) {
 	var endpoint string
-	payload := map[string]string{
+	payload := map[string]interface{}{
 		"environmentId":    environmentID,
 		"name":             name,
-		"appName":          name,
-		"databaseName":     name,
-		"databasePassword": password,
+		"appName":          appName,
+		"databaseName":     databaseName,
+		"databaseUser":     databaseUser,
+		"databasePassword": databasePassword,
 		"dockerImage":      dockerImage,
+	}
+
+	if description != "" {
+		payload["description"] = description
+	}
+	if serverID != "" {
+		payload["serverId"] = serverID
+	}
+	if args != nil && len(args) > 0 {
+		payload["args"] = args
 	}
 
 	switch dbType {
 	case "postgres":
 		endpoint = "postgres.create"
-		payload["databaseUser"] = "postgres"
+		if dockerImage == "" {
+			payload["dockerImage"] = "postgres:15"
+		}
 	case "mysql":
 		endpoint = "mysql.create"
-		payload["databaseUser"] = "root"
+		if databaseRootPassword == "" {
+			return nil, fmt.Errorf("databaseRootPassword is required for mysql")
+		}
+		payload["databaseRootPassword"] = databaseRootPassword
+		if dockerImage == "" {
+			payload["dockerImage"] = "mysql:8"
+		}
 	case "mariadb":
 		endpoint = "mariadb.create"
-		payload["databaseUser"] = "root"
+		if databaseRootPassword == "" {
+			return nil, fmt.Errorf("databaseRootPassword is required for mariadb")
+		}
+		payload["databaseRootPassword"] = databaseRootPassword
+		if dockerImage == "" {
+			payload["dockerImage"] = "mariadb:6"
+		}
 	case "mongo":
 		endpoint = "mongo.create"
-		payload["databaseUser"] = "mongo"
+		if replicaSets {
+			payload["replicaSets"] = true
+		}
+		if dockerImage == "" {
+			payload["dockerImage"] = "mongo:15"
+		}
 	case "redis":
 		endpoint = "redis.create"
-		payload["databaseUser"] = "default"
+		if dockerImage == "" {
+			payload["dockerImage"] = "redis:8"
+		}
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s", dbType)
 	}
@@ -681,68 +736,6 @@ func (c *DokployClient) CreateDatabase(projectID, environmentID, name, dbType, p
 		return nil, err
 	}
 
-	if string(resp) == "true" {
-		project, err := c.GetProject(projectID)
-		if err != nil {
-			return nil, fmt.Errorf("database created but failed to fetch project: %w", err)
-		}
-
-		for _, env := range project.Environments {
-			if env.ID == environmentID {
-				var dbs []Database
-				switch dbType {
-				case "postgres":
-					dbs = env.Postgres
-				case "mysql":
-					dbs = env.Mysql
-				case "mariadb":
-					dbs = env.Mariadb
-				case "mongo":
-					dbs = env.Mongo
-				case "redis":
-					dbs = env.Redis
-				}
-
-				for _, db := range dbs {
-					if db.Name == name || db.AppName == name {
-						id := db.PostgresID
-						if db.MysqlID != "" {
-							id = db.MysqlID
-						}
-						if db.MariadbID != "" {
-							id = db.MariadbID
-						}
-						if db.MongoID != "" {
-							id = db.MongoID
-						}
-						if db.RedisID != "" {
-							id = db.RedisID
-						}
-						if id != "" {
-							db.ID = id
-						}
-
-						if db.Type == "" {
-							db.Type = dbType
-						}
-						return &db, nil
-					}
-				}
-			}
-		}
-		return nil, fmt.Errorf("database created but not found in project environments")
-	}
-
-	var wrapper struct {
-		Database Database `json:"database"`
-	}
-	if err := json.Unmarshal(resp, &wrapper); err == nil && wrapper.Database.ID != "" {
-		if wrapper.Database.Type == "" {
-			wrapper.Database.Type = dbType
-		}
-		return &wrapper.Database, nil
-	}
-
 	var result Database
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, err
@@ -750,7 +743,142 @@ func (c *DokployClient) CreateDatabase(projectID, environmentID, name, dbType, p
 	if result.Type == "" {
 		result.Type = dbType
 	}
+	if result.AppName == "" {
+		result.AppName = appName
+	}
+	if result.DatabaseName == "" {
+		result.DatabaseName = databaseName
+	}
 	return &result, nil
+}
+
+func (c *DokployClient) UpdateDatabase(dbID, dbType, appName, name, description, databaseName, databaseUser, databasePassword, databaseRootPassword, dockerImage, serverID string, replicaSets bool, env, memoryReservation, memoryLimit, cpuReservation, cpuLimit, command, applicationStatus string, replicas, stopGracePeriod int64, args []string) (*Database, error) {
+	var endpoint string
+	var idKey string
+	payload := map[string]interface{}{
+		idKey:  dbID,
+		"name": name,
+	}
+
+	if appName != "" {
+		payload["appName"] = appName
+	}
+	if description != "" {
+		payload["description"] = description
+	}
+	if databaseName != "" {
+		payload["databaseName"] = databaseName
+	}
+	if databaseUser != "" {
+		payload["databaseUser"] = databaseUser
+	}
+	if databasePassword != "" {
+		payload["databasePassword"] = databasePassword
+	}
+	if databaseRootPassword != "" {
+		payload["databaseRootPassword"] = databaseRootPassword
+	}
+	if dockerImage != "" {
+		payload["dockerImage"] = dockerImage
+	}
+	if serverID != "" {
+		payload["serverId"] = serverID
+	}
+	if env != "" {
+		payload["env"] = env
+	}
+	if memoryReservation != "" {
+		payload["memoryReservation"] = memoryReservation
+	}
+	if memoryLimit != "" {
+		payload["memoryLimit"] = memoryLimit
+	}
+	if cpuReservation != "" {
+		payload["cpuReservation"] = cpuReservation
+	}
+	if cpuLimit != "" {
+		payload["cpuLimit"] = cpuLimit
+	}
+	if command != "" {
+		payload["command"] = command
+	}
+	if applicationStatus != "" {
+		payload["applicationStatus"] = applicationStatus
+	}
+	if replicas > 0 {
+		payload["replicas"] = replicas
+	}
+	if stopGracePeriod > 0 {
+		payload["stopGracePeriod"] = stopGracePeriod
+	}
+	if args != nil && len(args) > 0 {
+		payload["args"] = args
+	}
+
+	switch dbType {
+	case "postgres":
+		endpoint = "postgres.update"
+		idKey = "postgresId"
+	case "mysql":
+		endpoint = "mysql.update"
+		idKey = "mysqlId"
+	case "mariadb":
+		endpoint = "mariadb.update"
+		idKey = "mariadbId"
+	case "mongo":
+		endpoint = "mongo.update"
+		idKey = "mongoId"
+		if replicaSets {
+			payload["replicaSets"] = true
+		}
+	case "redis":
+		endpoint = "redis.update"
+		idKey = "redisId"
+	default:
+		return nil, fmt.Errorf("unsupported database type: %s", dbType)
+	}
+
+	payload[idKey] = dbID
+	resp, err := c.doRequest("POST", endpoint, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	var result Database
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (c *DokployClient) DeployDatabase(dbID, dbType string) error {
+	var endpoint string
+	var idKey string
+	switch dbType {
+	case "postgres":
+		endpoint = "postgres.deploy"
+		idKey = "postgresId"
+	case "mysql":
+		endpoint = "mysql.deploy"
+		idKey = "mysqlId"
+	case "mariadb":
+		endpoint = "mariadb.deploy"
+		idKey = "mariadbId"
+	case "mongo":
+		endpoint = "mongo.deploy"
+		idKey = "mongoId"
+	case "redis":
+		endpoint = "redis.deploy"
+		idKey = "redisId"
+	default:
+		return fmt.Errorf("unsupported database type: %s", dbType)
+	}
+
+	payload := map[string]string{
+		idKey: dbID,
+	}
+	_, err := c.doRequest("POST", endpoint, payload)
+	return err
 }
 
 func (c *DokployClient) GetDatabase(dbID string, databaseType string) (*Database, error) {

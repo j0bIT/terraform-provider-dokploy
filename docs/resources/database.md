@@ -17,18 +17,34 @@ description: |-
 
 ### Required
 
+- `database_name` (String)
+- `database_password` (String, Sensitive)
+- `database_user` (String)
 - `environment_id` (String)
 - `name` (String)
-- `password` (String, Sensitive)
-- `project_id` (String)
 - `type` (String)
 
 ### Optional
 
-- `version` (String)
+- `app_name` (String)
+- `args` (List of String)
+- `command` (String)
+- `cpu_limit` (String)
+- `cpu_reservation` (String)
+- `database_root_password` (String, Sensitive)
+- `description` (String)
+- `docker_image` (String)
+- `env` (String)
+- `external_port` (Number)
+- `memory_limit` (String)
+- `memory_reservation` (String)
+- `redeploy_on_update` (Boolean)
+- `replica_sets` (Boolean)
+- `replicas` (Number)
+- `server_id` (String)
+- `stop_grace_period` (Number)
 
 ### Read-Only
 
-- `external_port` (Number)
+- `application_status` (String)
 - `id` (String) The ID of this resource.
-- `internal_port` (Number)

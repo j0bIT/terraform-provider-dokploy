@@ -26,7 +26,6 @@ func TestAccResources(t *testing.T) {
 					resource.TestCheckResourceAttr("dokploy_project.full", "name", "TestProjectFull"),
 					resource.TestCheckResourceAttr("dokploy_environment.staging", "name", "staging"),
 					resource.TestCheckResourceAttr("dokploy_application.app", "name", "test-app"),
-					resource.TestCheckResourceAttr("dokploy_database.db", "name", "test-db"),
 					resource.TestCheckResourceAttr("dokploy_domain.domain", "host", "test-app.example.com"),
 					resource.TestCheckResourceAttr("dokploy_ssh_key.key", "name", "test-key"),
 				),
@@ -94,15 +93,6 @@ resource "dokploy_application" "app" {
   repository_url = "https://github.com/dokploy/dokploy" # Using a public repo
   branch         = "main"
   build_type     = "nixpacks"
-}
-
-resource "dokploy_database" "db" {
-  project_id     = dokploy_project.full.id
-  environment_id = dokploy_environment.staging.id
-  name           = "test-db"
-  type           = "postgres"
-  password       = "securepassword123"
-  version        = "15"
 }
 
 resource "dokploy_domain" "domain" {
