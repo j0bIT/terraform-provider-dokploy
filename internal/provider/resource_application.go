@@ -344,14 +344,14 @@ func (r *ApplicationResource) Read(ctx context.Context, req resource.ReadRequest
 		state.ProjectID = types.StringValue(app.ProjectID)
 	}
 	// If ProjectID is empty in API response, keep existing state value (don't overwrite)
-	
+
 	// Optional fields
 	if app.EnvironmentID != "" {
 		state.EnvironmentID = types.StringValue(app.EnvironmentID)
 	} else {
 		state.EnvironmentID = types.StringNull()
 	}
-	
+
 	// Computed fields - always set them, but preserve state if API returns empty
 	if app.RepositoryURL != "" {
 		state.RepositoryURL = types.StringValue(app.RepositoryURL)
@@ -359,43 +359,43 @@ func (r *ApplicationResource) Read(ctx context.Context, req resource.ReadRequest
 		state.RepositoryURL = types.StringValue("")
 	}
 	// else keep existing state value
-	
+
 	if app.Branch != "" {
 		state.Branch = types.StringValue(app.Branch)
 	} else if state.Branch.IsNull() {
 		state.Branch = types.StringValue("")
 	}
-	
+
 	if app.BuildType != "" {
 		state.BuildType = types.StringValue(app.BuildType)
 	} else if state.BuildType.IsNull() {
 		state.BuildType = types.StringValue("")
 	}
-	
+
 	if app.DockerfilePath != "" {
 		state.DockerfilePath = types.StringValue(app.DockerfilePath)
 	} else if state.DockerfilePath.IsNull() {
 		state.DockerfilePath = types.StringValue("")
 	}
-	
+
 	if app.DockerContextPath != "" {
 		state.DockerContextPath = types.StringValue(app.DockerContextPath)
 	} else if state.DockerContextPath.IsNull() {
 		state.DockerContextPath = types.StringValue("")
 	}
-	
+
 	if app.DockerBuildStage != "" {
 		state.DockerBuildStage = types.StringValue(app.DockerBuildStage)
 	} else if state.DockerBuildStage.IsNull() {
 		state.DockerBuildStage = types.StringValue("")
 	}
-	
+
 	if app.SourceType != "" {
 		state.SourceType = types.StringValue(app.SourceType)
 	} else if state.SourceType.IsNull() {
 		state.SourceType = types.StringValue("")
 	}
-	
+
 	// AutoDeploy is Computed boolean - always set from API
 	state.AutoDeploy = types.BoolValue(app.AutoDeploy)
 
@@ -482,7 +482,7 @@ func (r *ApplicationResource) Read(ctx context.Context, req resource.ReadRequest
 			state.GithubWatchPaths = types.ListNull(types.StringType)
 		}
 	}
-	
+
 	// EnableSubmodules - optional boolean, only update if it was set in config
 	if !state.EnableSubmodules.IsNull() {
 		state.EnableSubmodules = types.BoolValue(app.EnableSubmodules)
