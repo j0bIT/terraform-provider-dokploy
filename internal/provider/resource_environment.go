@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -97,10 +99,11 @@ func (r *EnvironmentResource) Create(ctx context.Context, req resource.CreateReq
 		}
 
 		plan.ID = types.StringValue(existingEnv.ID)
-		plan.Description = types.StringValue(existingEnv.Description)
+		// Keep plan.Description as-is (the user's config value). The API capitalises
+		// the first letter, but we normalise on Read so state stays consistent.
 	} else {
 		plan.ID = types.StringValue(env.ID)
-		plan.Description = types.StringValue(env.Description)
+		// Keep plan.Description as-is (the user's config value).
 	}
 
 	diags = resp.State.Set(ctx, plan)
@@ -126,7 +129,9 @@ func (r *EnvironmentResource) Read(ctx context.Context, req resource.ReadRequest
 	for _, env := range project.Environments {
 		if env.ID == state.ID.ValueString() {
 			state.Name = types.StringValue(env.Name)
-			state.Description = types.StringValue(env.Description)
+			// Dokploy capitalises the first letter of description. Normalise it to
+			// lowercase so the stored state matches the typical user config value.
+			state.Description = types.StringValue(lowercaseFirstRune(env.Description))
 			found = true
 			break
 		}
@@ -163,7 +168,8 @@ func (r *EnvironmentResource) Update(ctx context.Context, req resource.UpdateReq
 	}
 
 	plan.Name = types.StringValue(updatedEnv.Name)
-	plan.Description = types.StringValue(updatedEnv.Description)
+	// Keep plan.Description as-is (the user's config value). The API capitalises
+	// the first letter, but we normalise on Read so state stays consistent.
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -193,6 +199,17 @@ func (r *EnvironmentResource) Delete(ctx context.Context, req resource.DeleteReq
 
 func (r *EnvironmentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+// lowercaseFirstRune returns s with its first Unicode code-point lower-cased.
+// Dokploy's API capitalises the first letter of description; we normalise it
+// back so that state stays consistent with typical user config values.
+func lowercaseFirstRune(s string) string {
+	if s == "" {
+		return s
+	}
+	r, size := utf8.DecodeRuneInString(s)
+	return string(unicode.ToLower(r)) + s[size:]
 }
 
 func (r *EnvironmentResource) findProjectEnvironmentByName(projectID, envName string) (*client.Environment, error) {
