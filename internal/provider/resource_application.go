@@ -622,7 +622,7 @@ func (r *ApplicationResource) Create(ctx context.Context, req resource.CreateReq
 
 	shouldTriggerDeploy := !plan.DeployOnCreate.IsNull() && plan.DeployOnCreate.ValueBool()
 	// For inline managed ports/mounts with deferred autoDeploy, avoid duplicate deploys.
-	if shouldTriggerDeploy && !((len(managedPorts) > 0 || len(managedMounts) > 0) && createdApp.AutoDeploy) {
+	if shouldTriggerDeploy && (len(managedPorts) == 0 && len(managedMounts) == 0 || !createdApp.AutoDeploy) {
 		err := r.client.DeployApplication(createdApp.ID)
 		if err != nil {
 			resp.Diagnostics.AddWarning("Deployment Trigger Failed", fmt.Sprintf("Application created but deployment failed to trigger: %s", err.Error()))
