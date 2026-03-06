@@ -133,7 +133,7 @@ func (r *EnvironmentVariablesResource) Read(ctx context.Context, req resource.Re
 		return
 	}
 
-	envMap := map[string]string{}
+	var envMap map[string]string
 	if targetType == "application" {
 		app, appErr := r.client.GetApplication(targetID)
 		if appErr != nil {
@@ -259,8 +259,8 @@ func (r *EnvironmentVariablesResource) ImportState(ctx context.Context, req reso
 		return
 	}
 
-	var applicationID types.String = types.StringNull()
-	var composeID types.String = types.StringNull()
+	applicationID := types.StringNull()
+	composeID := types.StringNull()
 
 	switch {
 	case strings.HasPrefix(importID, "application:"):
