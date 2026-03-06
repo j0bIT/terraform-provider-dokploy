@@ -35,6 +35,37 @@ func TestAccResources(t *testing.T) {
 	})
 }
 
+func TestAccTraefikConfigResource(t *testing.T) {
+	host := os.Getenv("DOKPLOY_HOST")
+	apiKey := os.Getenv("DOKPLOY_API_KEY")
+	if host == "" || apiKey == "" {
+		t.Skip("DOKPLOY_HOST and DOKPLOY_API_KEY must be set for acceptance tests")
+	}
+	if os.Getenv("DOKPLOY_ACC_ALLOW_TRAEFIK_CONFIG") != "1" {
+		t.Skip("Skipping Traefik config acceptance test; set DOKPLOY_ACC_ALLOW_TRAEFIK_CONFIG=1 to enable")
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccTraefikConfigResourceConfig(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("dokploy_traefik_config.dashboard", "id", "default"),
+					resource.TestCheckResourceAttr("dokploy_traefik_config.dashboard", "reload_on_apply", "false"),
+				),
+			},
+			{
+				ResourceName:      "dokploy_traefik_config.dashboard",
+				ImportState:       true,
+				ImportStateId:     "default",
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
 func testAccResourcesConfig(projectName, envName string) string {
 	return fmt.Sprintf(`
 provider "dokploy" {
@@ -111,4 +142,38 @@ resource "dokploy_domain" "domain" {
   port           = 3000
 }
 `, os.Getenv("DOKPLOY_HOST"), os.Getenv("DOKPLOY_API_KEY"), projectName, envName)
+}
+
+func testAccTraefikConfigResourceConfig() string {
+	return fmt.Sprintf(`
+provider "dokploy" {
+  host    = "%s"
+  api_key = "%s"
+}
+
+resource "dokploy_traefik_config" "dashboard" {
+  reload_on_apply = false
+  config = <<-EOT
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+http:
+  routers:
+    dashboard:
+      rule: "Host(\"dokploy.internal.vanoorschot.dev\")"
+      entryPoints:
+        - websecure
+      service: dashboard
+      tls: {}
+  services:
+    dashboard:
+      loadBalancer:
+        servers:
+          - url: "http://dokploy:3000"
+EOT
+}
+`, os.Getenv("DOKPLOY_HOST"), os.Getenv("DOKPLOY_API_KEY"))
 }

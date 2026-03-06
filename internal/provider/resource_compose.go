@@ -27,18 +27,19 @@ type ComposeResource struct {
 }
 
 type ComposeResourceModel struct {
-	ID                 types.String `tfsdk:"id"`
-	ProjectID          types.String `tfsdk:"project_id"`
-	EnvironmentID      types.String `tfsdk:"environment_id"`
-	Name               types.String `tfsdk:"name"`
-	ComposeFileContent types.String `tfsdk:"compose_file_content"`
-	SourceType         types.String `tfsdk:"source_type"`
-	CustomGitUrl       types.String `tfsdk:"custom_git_url"`
-	CustomGitBranch    types.String `tfsdk:"custom_git_branch"`
-	CustomGitSSHKeyID  types.String `tfsdk:"custom_git_ssh_key_id"`
-	ComposePath        types.String `tfsdk:"compose_path"`
-	AutoDeploy         types.Bool   `tfsdk:"auto_deploy"`
-	DeployOnCreate     types.Bool   `tfsdk:"deploy_on_create"`
+	ID                     types.String `tfsdk:"id"`
+	ProjectID              types.String `tfsdk:"project_id"`
+	EnvironmentID          types.String `tfsdk:"environment_id"`
+	Name                   types.String `tfsdk:"name"`
+	ComposeFileContent     types.String `tfsdk:"compose_file_content"`
+	SourceType             types.String `tfsdk:"source_type"`
+	CustomGitUrl           types.String `tfsdk:"custom_git_url"`
+	CustomGitBranch        types.String `tfsdk:"custom_git_branch"`
+	CustomGitSSHKeyID      types.String `tfsdk:"custom_git_ssh_key_id"`
+	ComposePath            types.String `tfsdk:"compose_path"`
+	AutoDeploy             types.Bool   `tfsdk:"auto_deploy"`
+	DeployOnCreate         types.Bool   `tfsdk:"deploy_on_create"`
+	DeleteVolumesOnDestroy types.Bool   `tfsdk:"delete_volumes_on_destroy"`
 }
 
 func (r *ComposeResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -106,6 +107,14 @@ func (r *ComposeResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"deploy_on_create": schema.BoolAttribute{
 				Optional: true,
 			},
+			"delete_volumes_on_destroy": schema.BoolAttribute{
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+				Description: "If true, deletes attached volumes when this compose stack is destroyed.",
+			},
 		},
 	}
 }
@@ -143,6 +152,9 @@ func (r *ComposeResource) Create(ctx context.Context, req resource.CreateRequest
 			plan.SourceType = types.StringValue("github")
 		}
 	}
+	if plan.DeleteVolumesOnDestroy.IsUnknown() || plan.DeleteVolumesOnDestroy.IsNull() {
+		plan.DeleteVolumesOnDestroy = types.BoolValue(false)
+	}
 
 	comp := client.Compose{
 		Name:              plan.Name.ValueString(),
@@ -172,7 +184,8 @@ func (r *ComposeResource) Create(ctx context.Context, req resource.CreateRequest
 		plan.ComposeFileContent = types.StringNull()
 	}
 
-	if !plan.DeployOnCreate.IsNull() && plan.DeployOnCreate.ValueBool() {
+	if !plan.DeployOnCreate.IsNull() && plan.DeployOnCreate.ValueBool() && !createdComp.AutoDeploy {
+		// Avoid duplicate deployments: Dokploy can already trigger deploys when autoDeploy is enabled.
 		err := r.client.DeployCompose(createdComp.ID)
 		if err != nil {
 			resp.Diagnostics.AddWarning("Deployment Trigger Failed", fmt.Sprintf("Compose stack created but deployment failed to trigger: %s", err.Error()))
@@ -222,6 +235,9 @@ func (r *ComposeResource) Update(ctx context.Context, req resource.UpdateRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if plan.DeleteVolumesOnDestroy.IsUnknown() || plan.DeleteVolumesOnDestroy.IsNull() {
+		plan.DeleteVolumesOnDestroy = types.BoolValue(false)
+	}
 
 	comp := client.Compose{
 		ID:                plan.ID.ValueString(),
@@ -259,7 +275,7 @@ func (r *ComposeResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 
-	err := r.client.DeleteCompose(state.ID.ValueString())
+	err := r.client.DeleteCompose(state.ID.ValueString(), state.DeleteVolumesOnDestroy.ValueBool())
 	if err != nil {
 		if strings.Contains(err.Error(), "Not Found") || strings.Contains(err.Error(), "404") {
 			return

@@ -27,6 +27,7 @@ type EnvironmentVariablesResource struct {
 type EnvironmentVariablesResourceModel struct {
 	ID            types.String `tfsdk:"id"`
 	ApplicationID types.String `tfsdk:"application_id"`
+	ComposeID     types.String `tfsdk:"compose_id"`
 	Variables     types.Map    `tfsdk:"variables"`
 	CreateEnvFile types.Bool   `tfsdk:"create_env_file"`
 }
@@ -37,13 +38,16 @@ func (r *EnvironmentVariablesResource) Metadata(_ context.Context, req resource.
 
 func (r *EnvironmentVariablesResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages all environment variables for a Dokploy application as a single resource.",
+		Description: "Manages all environment variables for a Dokploy application or compose stack as a single resource.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
 			},
 			"application_id": schema.StringAttribute{
-				Required: true,
+				Optional: true,
+			},
+			"compose_id": schema.StringAttribute{
+				Optional: true,
 			},
 			"variables": schema.MapAttribute{
 				Required:    true,
@@ -86,18 +90,30 @@ func (r *EnvironmentVariablesResource) Create(ctx context.Context, req resource.
 		return
 	}
 
-	err := r.client.UpdateApplicationEnv(plan.ApplicationID.ValueString(), func(m map[string]string) {
+	targetType, targetID, err := getEnvironmentVariableTarget(plan.ApplicationID, plan.ComposeID)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid Association", err.Error())
+		return
+	}
+
+	updateFn := func(m map[string]string) {
 		for k, v := range envMap {
 			m[k] = v
 		}
-	}, plan.CreateEnvFile.ValueBoolPointer())
+	}
+
+	if targetType == "application" {
+		err = r.client.UpdateApplicationEnv(targetID, updateFn, plan.CreateEnvFile.ValueBoolPointer())
+	} else {
+		err = r.client.UpdateComposeEnv(targetID, updateFn, plan.CreateEnvFile.ValueBoolPointer())
+	}
 
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating environment variables", err.Error())
 		return
 	}
 
-	plan.ID = plan.ApplicationID
+	plan.ID = types.StringValue(targetID)
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -111,17 +127,38 @@ func (r *EnvironmentVariablesResource) Read(ctx context.Context, req resource.Re
 		return
 	}
 
-	app, err := r.client.GetApplication(state.ApplicationID.ValueString())
+	targetType, targetID, err := getEnvironmentVariableTarget(state.ApplicationID, state.ComposeID)
 	if err != nil {
-		if strings.Contains(err.Error(), "Not Found") || strings.Contains(err.Error(), "404") {
-			resp.State.RemoveResource(ctx)
-			return
-		}
-		resp.Diagnostics.AddError("Error reading application", err.Error())
+		resp.Diagnostics.AddError("Invalid Association", err.Error())
 		return
 	}
 
-	envMap := client.ParseEnv(app.Env)
+	envMap := map[string]string{}
+	if targetType == "application" {
+		app, appErr := r.client.GetApplication(targetID)
+		if appErr != nil {
+			if strings.Contains(appErr.Error(), "Not Found") || strings.Contains(appErr.Error(), "404") {
+				resp.State.RemoveResource(ctx)
+				return
+			}
+			resp.Diagnostics.AddError("Error reading application", appErr.Error())
+			return
+		}
+		envMap = client.ParseEnv(app.Env)
+	} else {
+		comp, compErr := r.client.GetCompose(targetID)
+		if compErr != nil {
+			if strings.Contains(compErr.Error(), "Not Found") || strings.Contains(compErr.Error(), "404") {
+				resp.State.RemoveResource(ctx)
+				return
+			}
+			resp.Diagnostics.AddError("Error reading compose", compErr.Error())
+			return
+		}
+		envMap = client.ParseEnv(comp.Env)
+	}
+
+	state.ID = types.StringValue(targetID)
 	state.Variables, diags = types.MapValueFrom(ctx, types.StringType, envMap)
 	resp.Diagnostics.Append(diags...)
 
@@ -133,10 +170,8 @@ func (r *EnvironmentVariablesResource) Read(ctx context.Context, req resource.Re
 }
 
 func (r *EnvironmentVariablesResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, state EnvironmentVariablesResourceModel
+	var plan EnvironmentVariablesResourceModel
 	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	diags = req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -149,7 +184,13 @@ func (r *EnvironmentVariablesResource) Update(ctx context.Context, req resource.
 		return
 	}
 
-	err := r.client.UpdateApplicationEnv(plan.ApplicationID.ValueString(), func(m map[string]string) {
+	targetType, targetID, err := getEnvironmentVariableTarget(plan.ApplicationID, plan.ComposeID)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid Association", err.Error())
+		return
+	}
+
+	updateFn := func(m map[string]string) {
 		// Clear existing vars and set new ones
 		for k := range m {
 			delete(m, k)
@@ -157,14 +198,20 @@ func (r *EnvironmentVariablesResource) Update(ctx context.Context, req resource.
 		for k, v := range envMap {
 			m[k] = v
 		}
-	}, plan.CreateEnvFile.ValueBoolPointer())
+	}
+
+	if targetType == "application" {
+		err = r.client.UpdateApplicationEnv(targetID, updateFn, plan.CreateEnvFile.ValueBoolPointer())
+	} else {
+		err = r.client.UpdateComposeEnv(targetID, updateFn, plan.CreateEnvFile.ValueBoolPointer())
+	}
 
 	if err != nil {
 		resp.Diagnostics.AddError("Error updating environment variables", err.Error())
 		return
 	}
 
-	plan.ID = plan.ApplicationID
+	plan.ID = types.StringValue(targetID)
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -178,11 +225,23 @@ func (r *EnvironmentVariablesResource) Delete(ctx context.Context, req resource.
 		return
 	}
 
-	err := r.client.UpdateApplicationEnv(state.ApplicationID.ValueString(), func(m map[string]string) {
+	targetType, targetID, err := getEnvironmentVariableTarget(state.ApplicationID, state.ComposeID)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid Association", err.Error())
+		return
+	}
+
+	clearFn := func(m map[string]string) {
 		for k := range m {
 			delete(m, k)
 		}
-	}, state.CreateEnvFile.ValueBoolPointer())
+	}
+
+	if targetType == "application" {
+		err = r.client.UpdateApplicationEnv(targetID, clearFn, state.CreateEnvFile.ValueBoolPointer())
+	} else {
+		err = r.client.UpdateComposeEnv(targetID, clearFn, state.CreateEnvFile.ValueBoolPointer())
+	}
 
 	if err != nil {
 		if strings.Contains(err.Error(), "Not Found") || strings.Contains(err.Error(), "404") {
@@ -194,5 +253,59 @@ func (r *EnvironmentVariablesResource) Delete(ctx context.Context, req resource.
 }
 
 func (r *EnvironmentVariablesResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("application_id"), req, resp)
+	importID := strings.TrimSpace(req.ID)
+	if importID == "" {
+		resp.Diagnostics.AddError("Invalid Import ID", "Import ID cannot be empty.")
+		return
+	}
+
+	var applicationID types.String = types.StringNull()
+	var composeID types.String = types.StringNull()
+
+	switch {
+	case strings.HasPrefix(importID, "application:"):
+		id := strings.TrimSpace(strings.TrimPrefix(importID, "application:"))
+		if id == "" {
+			resp.Diagnostics.AddError("Invalid Import ID", "Expected format application:<id>.")
+			return
+		}
+		applicationID = types.StringValue(id)
+	case strings.HasPrefix(importID, "compose:"):
+		id := strings.TrimSpace(strings.TrimPrefix(importID, "compose:"))
+		if id == "" {
+			resp.Diagnostics.AddError("Invalid Import ID", "Expected format compose:<id>.")
+			return
+		}
+		composeID = types.StringValue(id)
+	default:
+		// Backward compatibility: raw IDs are treated as application IDs.
+		applicationID = types.StringValue(importID)
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("application_id"), applicationID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("compose_id"), composeID)...)
+
+	if !applicationID.IsNull() {
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), applicationID)...)
+	} else {
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), composeID)...)
+	}
+}
+
+func getEnvironmentVariableTarget(applicationID, composeID types.String) (string, string, error) {
+	hasApplicationID := !applicationID.IsNull() && !applicationID.IsUnknown() && applicationID.ValueString() != ""
+	hasComposeID := !composeID.IsNull() && !composeID.IsUnknown() && composeID.ValueString() != ""
+
+	if hasApplicationID && hasComposeID {
+		return "", "", fmt.Errorf("only one of application_id or compose_id can be provided")
+	}
+	if !hasApplicationID && !hasComposeID {
+		return "", "", fmt.Errorf("either application_id or compose_id must be provided")
+	}
+
+	if hasApplicationID {
+		return "application", applicationID.ValueString(), nil
+	}
+
+	return "compose", composeID.ValueString(), nil
 }

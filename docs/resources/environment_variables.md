@@ -3,12 +3,12 @@
 page_title: "dokploy_environment_variables Resource - dokploy"
 subcategory: ""
 description: |-
-  Manages all environment variables for a Dokploy application as a single resource.
+  Manages all environment variables for a Dokploy application or compose stack as a single resource.
 ---
 
 # dokploy_environment_variables (Resource)
 
-Manages all environment variables for a Dokploy application as a single resource.
+Manages all environment variables for a Dokploy application or compose stack as a single resource.
 
 
 
@@ -17,11 +17,12 @@ Manages all environment variables for a Dokploy application as a single resource
 
 ### Required
 
-- `application_id` (String)
 - `variables` (Map of String, Sensitive)
 
 ### Optional
 
+- `application_id` (String)
+- `compose_id` (String)
 - `create_env_file` (Boolean)
 
 ### Read-Only

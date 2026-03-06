@@ -26,16 +26,17 @@ type DomainResource struct {
 }
 
 type DomainResourceModel struct {
-	ID                types.String `tfsdk:"id"`
-	ApplicationID     types.String `tfsdk:"application_id"`
-	ComposeID         types.String `tfsdk:"compose_id"`
-	ServiceName       types.String `tfsdk:"service_name"`
-	Host              types.String `tfsdk:"host"`
-	Path              types.String `tfsdk:"path"`
-	Port              types.Int64  `tfsdk:"port"`
-	HTTPS             types.Bool   `tfsdk:"https"`
-	GenerateTraefikMe types.Bool   `tfsdk:"generate_traefik_me"`
-	RedeployOnUpdate  types.Bool   `tfsdk:"redeploy_on_update"`
+	ID                  types.String `tfsdk:"id"`
+	ApplicationID       types.String `tfsdk:"application_id"`
+	ComposeID           types.String `tfsdk:"compose_id"`
+	ServiceName         types.String `tfsdk:"service_name"`
+	Host                types.String `tfsdk:"host"`
+	Path                types.String `tfsdk:"path"`
+	Port                types.Int64  `tfsdk:"port"`
+	HTTPS               types.Bool   `tfsdk:"https"`
+	CertificateProvider types.String `tfsdk:"certificate_provider"`
+	GenerateTraefikMe   types.Bool   `tfsdk:"generate_traefik_me"`
+	RedeployOnUpdate    types.Bool   `tfsdk:"redeploy_on_update"`
 }
 
 func (r *DomainResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -86,6 +87,14 @@ func (r *DomainResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"https": schema.BoolAttribute{
 				Optional: true,
 				Computed: true,
+			},
+			"certificate_provider": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Certificate provider for the domain. Supported values: letsencrypt, none, custom.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"generate_traefik_me": schema.BoolAttribute{
 				Optional:    true,
@@ -166,15 +175,24 @@ func (r *DomainResource) Create(ctx context.Context, req resource.CreateRequest,
 	if plan.HTTPS.IsUnknown() || plan.HTTPS.IsNull() {
 		plan.HTTPS = types.BoolValue(true)
 	}
+	if plan.CertificateProvider.IsUnknown() || plan.CertificateProvider.IsNull() || plan.CertificateProvider.ValueString() == "" {
+		plan.CertificateProvider = types.StringValue(defaultCertificateProvider(plan.HTTPS.ValueBool()))
+	}
+	certificateType, err := certificateTypeFromPlan(plan.HTTPS.ValueBool(), plan.CertificateProvider.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid certificate_provider", err.Error())
+		return
+	}
 
 	domain := client.Domain{
-		ApplicationID: plan.ApplicationID.ValueString(),
-		ComposeID:     plan.ComposeID.ValueString(),
-		ServiceName:   plan.ServiceName.ValueString(),
-		Host:          plan.Host.ValueString(),
-		Path:          plan.Path.ValueString(),
-		Port:          plan.Port.ValueInt64(),
-		HTTPS:         plan.HTTPS.ValueBool(),
+		ApplicationID:   plan.ApplicationID.ValueString(),
+		ComposeID:       plan.ComposeID.ValueString(),
+		ServiceName:     plan.ServiceName.ValueString(),
+		Host:            plan.Host.ValueString(),
+		Path:            plan.Path.ValueString(),
+		Port:            plan.Port.ValueInt64(),
+		HTTPS:           plan.HTTPS.ValueBool(),
+		CertificateType: certificateType,
 	}
 
 	createdDomain, err := r.client.CreateDomain(domain)
@@ -231,6 +249,11 @@ func (r *DomainResource) Read(ctx context.Context, req resource.ReadRequest, res
 			state.Path = types.StringValue(d.Path)
 			state.Port = types.Int64Value(d.Port)
 			state.HTTPS = types.BoolValue(d.HTTPS)
+			if d.CertificateType != "" {
+				state.CertificateProvider = types.StringValue(strings.ToLower(d.CertificateType))
+			} else {
+				state.CertificateProvider = types.StringValue(defaultCertificateProvider(d.HTTPS))
+			}
 			state.ServiceName = types.StringValue(d.ServiceName)
 			if d.ApplicationID != "" {
 				state.ApplicationID = types.StringValue(d.ApplicationID)
@@ -259,16 +282,28 @@ func (r *DomainResource) Update(ctx context.Context, req resource.UpdateRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if plan.HTTPS.IsUnknown() || plan.HTTPS.IsNull() {
+		plan.HTTPS = types.BoolValue(true)
+	}
+	if plan.CertificateProvider.IsUnknown() || plan.CertificateProvider.IsNull() || plan.CertificateProvider.ValueString() == "" {
+		plan.CertificateProvider = types.StringValue(defaultCertificateProvider(plan.HTTPS.ValueBool()))
+	}
+	certificateType, err := certificateTypeFromPlan(plan.HTTPS.ValueBool(), plan.CertificateProvider.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid certificate_provider", err.Error())
+		return
+	}
 
 	domain := client.Domain{
-		ID:            plan.ID.ValueString(),
-		ApplicationID: plan.ApplicationID.ValueString(),
-		ComposeID:     plan.ComposeID.ValueString(),
-		ServiceName:   plan.ServiceName.ValueString(),
-		Host:          plan.Host.ValueString(),
-		Path:          plan.Path.ValueString(),
-		Port:          plan.Port.ValueInt64(),
-		HTTPS:         plan.HTTPS.ValueBool(),
+		ID:              plan.ID.ValueString(),
+		ApplicationID:   plan.ApplicationID.ValueString(),
+		ComposeID:       plan.ComposeID.ValueString(),
+		ServiceName:     plan.ServiceName.ValueString(),
+		Host:            plan.Host.ValueString(),
+		Path:            plan.Path.ValueString(),
+		Port:            plan.Port.ValueInt64(),
+		HTTPS:           plan.HTTPS.ValueBool(),
+		CertificateType: certificateType,
 	}
 
 	updatedDomain, err := r.client.UpdateDomain(domain)
@@ -281,6 +316,11 @@ func (r *DomainResource) Update(ctx context.Context, req resource.UpdateRequest,
 	plan.Path = types.StringValue(updatedDomain.Path)
 	plan.Port = types.Int64Value(updatedDomain.Port)
 	plan.HTTPS = types.BoolValue(updatedDomain.HTTPS)
+	if updatedDomain.CertificateType != "" {
+		plan.CertificateProvider = types.StringValue(strings.ToLower(updatedDomain.CertificateType))
+	} else {
+		plan.CertificateProvider = types.StringValue(defaultCertificateProvider(updatedDomain.HTTPS))
+	}
 	plan.ServiceName = types.StringValue(updatedDomain.ServiceName)
 
 	// Trigger Redeploy if requested
@@ -316,4 +356,29 @@ func (r *DomainResource) Delete(ctx context.Context, req resource.DeleteRequest,
 
 func (r *DomainResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func defaultCertificateProvider(httpsEnabled bool) string {
+	if httpsEnabled {
+		return "letsencrypt"
+	}
+	return "none"
+}
+
+func certificateTypeFromPlan(httpsEnabled bool, provider string) (string, error) {
+	normalizedProvider := strings.ToLower(strings.TrimSpace(provider))
+	if normalizedProvider == "" {
+		normalizedProvider = defaultCertificateProvider(httpsEnabled)
+	}
+
+	if !httpsEnabled {
+		return "none", nil
+	}
+
+	switch normalizedProvider {
+	case "letsencrypt", "none", "custom":
+		return normalizedProvider, nil
+	default:
+		return "", fmt.Errorf("got %q, expected one of: letsencrypt, none, custom", provider)
+	}
 }

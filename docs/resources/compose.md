@@ -29,6 +29,7 @@ description: |-
 - `custom_git_branch` (String)
 - `custom_git_ssh_key_id` (String)
 - `custom_git_url` (String)
+- `delete_volumes_on_destroy` (Boolean) If true, deletes attached volumes when this compose stack is destroyed.
 - `deploy_on_create` (Boolean)
 - `source_type` (String)
 
