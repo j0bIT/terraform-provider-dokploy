@@ -69,3 +69,85 @@ func TestOptionalInt64PointerFromPlan(t *testing.T) {
 		t.Fatalf("expected pointer to 0, got %#v", got)
 	}
 }
+
+func TestBuildDockerProviderConfig_OnlyImage(t *testing.T) {
+	cfg := buildDockerProviderConfig(ApplicationResourceModel{
+		DockerImage: types.StringValue("nginx:latest"),
+		RegistryURL: types.StringNull(),
+		Username:    types.StringNull(),
+		Password:    types.StringNull(),
+	})
+
+	if got, want := cfg["dockerImage"], "nginx:latest"; got != want {
+		t.Fatalf("dockerImage: got %v want %q", got, want)
+	}
+	if _, ok := cfg["registryUrl"]; ok {
+		t.Fatalf("registryUrl should be omitted when null, got %#v", cfg["registryUrl"])
+	}
+	if _, ok := cfg["username"]; ok {
+		t.Fatalf("username should be omitted when null, got %#v", cfg["username"])
+	}
+	if _, ok := cfg["password"]; ok {
+		t.Fatalf("password should be omitted when null, got %#v", cfg["password"])
+	}
+}
+
+func TestBuildDockerProviderConfig_OmitsEmptyStrings(t *testing.T) {
+	cfg := buildDockerProviderConfig(ApplicationResourceModel{
+		DockerImage: types.StringValue("nginx:latest"),
+		RegistryURL: types.StringValue(""),
+		Username:    types.StringValue(""),
+		Password:    types.StringValue(""),
+	})
+
+	if _, ok := cfg["registryUrl"]; ok {
+		t.Fatalf("registryUrl should be omitted when empty string")
+	}
+	if _, ok := cfg["username"]; ok {
+		t.Fatalf("username should be omitted when empty string")
+	}
+	if _, ok := cfg["password"]; ok {
+		t.Fatalf("password should be omitted when empty string")
+	}
+}
+
+func TestBuildDockerProviderConfig_OmitsUnknown(t *testing.T) {
+	cfg := buildDockerProviderConfig(ApplicationResourceModel{
+		DockerImage: types.StringValue("nginx:latest"),
+		RegistryURL: types.StringUnknown(),
+		Username:    types.StringUnknown(),
+		Password:    types.StringUnknown(),
+	})
+
+	if _, ok := cfg["registryUrl"]; ok {
+		t.Fatalf("registryUrl should be omitted when unknown")
+	}
+	if _, ok := cfg["username"]; ok {
+		t.Fatalf("username should be omitted when unknown")
+	}
+	if _, ok := cfg["password"]; ok {
+		t.Fatalf("password should be omitted when unknown")
+	}
+}
+
+func TestBuildDockerProviderConfig_AllFieldsSet(t *testing.T) {
+	cfg := buildDockerProviderConfig(ApplicationResourceModel{
+		DockerImage: types.StringValue("ghcr.io/acme/api:1.2.3"),
+		RegistryURL: types.StringValue("https://ghcr.io"),
+		Username:    types.StringValue("acme-bot"),
+		Password:    types.StringValue("s3cret"),
+	})
+
+	if got, want := cfg["dockerImage"], "ghcr.io/acme/api:1.2.3"; got != want {
+		t.Fatalf("dockerImage: got %v want %q", got, want)
+	}
+	if got, want := cfg["registryUrl"], "https://ghcr.io"; got != want {
+		t.Fatalf("registryUrl: got %v want %q", got, want)
+	}
+	if got, want := cfg["username"], "acme-bot"; got != want {
+		t.Fatalf("username: got %v want %q", got, want)
+	}
+	if got, want := cfg["password"], "s3cret"; got != want {
+		t.Fatalf("password: got %v want %q", got, want)
+	}
+}

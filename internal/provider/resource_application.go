@@ -28,23 +28,26 @@ type ApplicationResource struct {
 }
 
 type ApplicationResourceModel struct {
-	ID                                    types.String `tfsdk:"id"`
-	ProjectID                             types.String `tfsdk:"project_id"`
-	EnvironmentID                         types.String `tfsdk:"environment_id"`
-	Name                                  types.String `tfsdk:"name"`
-	RepositoryURL                         types.String `tfsdk:"repository_url"`
-	Branch                                types.String `tfsdk:"branch"`
-	BuildType                             types.String `tfsdk:"build_type"`
-	DockerfilePath                        types.String `tfsdk:"dockerfile_path"`
-	DockerContextPath                     types.String `tfsdk:"docker_context_path"`
-	DockerBuildStage                      types.String `tfsdk:"docker_build_stage"`
-	CustomGitUrl                          types.String `tfsdk:"custom_git_url"`
-	CustomGitBranch                       types.String `tfsdk:"custom_git_branch"`
-	CustomGitSSHKeyID                     types.String `tfsdk:"custom_git_ssh_key_id"`
-	CustomGitBuildPath                    types.String `tfsdk:"custom_git_build_path"`
-	SourceType                            types.String `tfsdk:"source_type"`
-	Username                              types.String `tfsdk:"username"`
-	Password                              types.String `tfsdk:"password"`
+	ID                 types.String `tfsdk:"id"`
+	ProjectID          types.String `tfsdk:"project_id"`
+	EnvironmentID      types.String `tfsdk:"environment_id"`
+	Name               types.String `tfsdk:"name"`
+	RepositoryURL      types.String `tfsdk:"repository_url"`
+	Branch             types.String `tfsdk:"branch"`
+	BuildType          types.String `tfsdk:"build_type"`
+	DockerfilePath     types.String `tfsdk:"dockerfile_path"`
+	DockerContextPath  types.String `tfsdk:"docker_context_path"`
+	DockerBuildStage   types.String `tfsdk:"docker_build_stage"`
+	CustomGitUrl       types.String `tfsdk:"custom_git_url"`
+	CustomGitBranch    types.String `tfsdk:"custom_git_branch"`
+	CustomGitSSHKeyID  types.String `tfsdk:"custom_git_ssh_key_id"`
+	CustomGitBuildPath types.String `tfsdk:"custom_git_build_path"`
+	SourceType         types.String `tfsdk:"source_type"`
+	Username           types.String `tfsdk:"username"`
+	Password           types.String `tfsdk:"password"`
+	// Docker provider fields
+	DockerImage                           types.String `tfsdk:"docker_image"`
+	RegistryURL                           types.String `tfsdk:"registry_url"`
 	AutoDeploy                            types.Bool   `tfsdk:"auto_deploy"`
 	DeployOnCreate                        types.Bool   `tfsdk:"deploy_on_create"`
 	IsPreviewDeploymentsActive            types.Bool   `tfsdk:"is_preview_deployments_active"`
@@ -122,6 +125,22 @@ func optionalBoolPointerFromPlan(value types.Bool) *bool {
 	}
 	result := value.ValueBool()
 	return &result
+}
+
+func buildDockerProviderConfig(plan ApplicationResourceModel) map[string]interface{} {
+	cfg := map[string]interface{}{
+		"dockerImage": plan.DockerImage.ValueString(),
+	}
+	if !plan.RegistryURL.IsNull() && !plan.RegistryURL.IsUnknown() && plan.RegistryURL.ValueString() != "" {
+		cfg["registryUrl"] = plan.RegistryURL.ValueString()
+	}
+	if !plan.Username.IsNull() && !plan.Username.IsUnknown() && plan.Username.ValueString() != "" {
+		cfg["username"] = plan.Username.ValueString()
+	}
+	if !plan.Password.IsNull() && !plan.Password.IsUnknown() && plan.Password.ValueString() != "" {
+		cfg["password"] = plan.Password.ValueString()
+	}
+	return cfg
 }
 
 func optionalInt64PointerFromPlan(value types.Int64) *int64 {
@@ -205,6 +224,13 @@ func (r *ApplicationResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"password": schema.StringAttribute{
 				Optional:  true,
 				Sensitive: true,
+			},
+			"docker_image": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+			},
+			"registry_url": schema.StringAttribute{
+				Optional: true,
 			},
 			"auto_deploy": schema.BoolAttribute{
 				Optional: true,
@@ -434,6 +460,8 @@ func (r *ApplicationResource) Create(ctx context.Context, req resource.CreateReq
 		SourceType:                            plan.SourceType.ValueString(),
 		Username:                              plan.Username.ValueString(),
 		Password:                              plan.Password.ValueString(),
+		DockerImage:                           plan.DockerImage.ValueString(),
+		RegistryURL:                           plan.RegistryURL.ValueString(),
 		AutoDeploy:                            createAutoDeploy,
 		IsPreviewDeploymentsActive:            optionalBoolPointerFromPlan(plan.IsPreviewDeploymentsActive),
 		PreviewWildcard:                       optionalStringFromPlan(plan.PreviewWildcard),
@@ -474,6 +502,9 @@ func (r *ApplicationResource) Create(ctx context.Context, req resource.CreateReq
 	}
 	if createdApp.SourceType != "" {
 		plan.SourceType = types.StringValue(createdApp.SourceType)
+	}
+	if createdApp.DockerImage != "" {
+		plan.DockerImage = types.StringValue(createdApp.DockerImage)
 	}
 	if createdApp.DockerfilePath != "" {
 		plan.DockerfilePath = types.StringValue(createdApp.DockerfilePath)
@@ -570,6 +601,15 @@ func (r *ApplicationResource) Create(ctx context.Context, req resource.CreateReq
 		}
 	}
 
+	// Save Docker provider if source_type is docker
+	if plan.SourceType.ValueString() == "docker" {
+		dockerConfig := buildDockerProviderConfig(plan)
+		if err := r.client.SaveDockerProvider(createdApp.ID, dockerConfig); err != nil {
+			resp.Diagnostics.AddWarning("Docker Provider Setup Failed",
+				fmt.Sprintf("Application created but docker provider configuration failed: %s", err.Error()))
+		}
+	}
+
 	if (len(managedPorts) > 0 || len(managedMounts) > 0) && desiredAutoDeploy && !createdApp.AutoDeploy {
 		updatedApp, err := r.client.UpdateApplication(client.Application{
 			ID:                                    createdApp.ID,
@@ -589,6 +629,8 @@ func (r *ApplicationResource) Create(ctx context.Context, req resource.CreateReq
 			SourceType:                            app.SourceType,
 			Username:                              app.Username,
 			Password:                              app.Password,
+			DockerImage:                           app.DockerImage,
+			RegistryURL:                           app.RegistryURL,
 			AutoDeploy:                            true,
 			IsPreviewDeploymentsActive:            app.IsPreviewDeploymentsActive,
 			PreviewWildcard:                       app.PreviewWildcard,
@@ -708,6 +750,20 @@ func (r *ApplicationResource) Read(ctx context.Context, req resource.ReadRequest
 		state.SourceType = types.StringValue(app.SourceType)
 	} else if state.SourceType.IsNull() {
 		state.SourceType = types.StringValue("")
+	}
+
+	// docker_image is Computed - always set, but preserve state if API returns empty
+	if app.DockerImage != "" {
+		state.DockerImage = types.StringValue(app.DockerImage)
+	} else if state.DockerImage.IsNull() {
+		state.DockerImage = types.StringValue("")
+	}
+
+	// registry_url - only update if it was set in config (matches custom_git_url pattern)
+	if app.RegistryURL != "" {
+		state.RegistryURL = types.StringValue(app.RegistryURL)
+	} else if !state.RegistryURL.IsNull() {
+		state.RegistryURL = types.StringNull()
 	}
 
 	// AutoDeploy is Computed boolean - always set from API
@@ -1022,6 +1078,8 @@ func (r *ApplicationResource) Update(ctx context.Context, req resource.UpdateReq
 		SourceType:                            plan.SourceType.ValueString(),
 		Username:                              plan.Username.ValueString(),
 		Password:                              plan.Password.ValueString(),
+		DockerImage:                           plan.DockerImage.ValueString(),
+		RegistryURL:                           plan.RegistryURL.ValueString(),
 		AutoDeploy:                            plan.AutoDeploy.ValueBool(),
 		IsPreviewDeploymentsActive:            optionalBoolPointerFromPlan(plan.IsPreviewDeploymentsActive),
 		PreviewWildcard:                       optionalStringFromPlan(plan.PreviewWildcard),
@@ -1088,6 +1146,15 @@ func (r *ApplicationResource) Update(ctx context.Context, req resource.UpdateReq
 		if err != nil {
 			resp.Diagnostics.AddWarning("GitHub Provider Update Failed",
 				fmt.Sprintf("Application updated but GitHub provider configuration failed: %s", err.Error()))
+		}
+	}
+
+	// Update Docker provider if source_type is docker
+	if plan.SourceType.ValueString() == "docker" {
+		dockerConfig := buildDockerProviderConfig(plan)
+		if err := r.client.SaveDockerProvider(updatedApp.ID, dockerConfig); err != nil {
+			resp.Diagnostics.AddWarning("Docker Provider Update Failed",
+				fmt.Sprintf("Application updated but docker provider configuration failed: %s", err.Error()))
 		}
 	}
 
