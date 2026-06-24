@@ -535,6 +535,9 @@ type Application struct {
 	CustomGitBuildPath string `json:"customGitBuildPath"`
 	Username           string `json:"username"`
 	Password           string `json:"password"`
+	// Docker Provider fields
+	DockerImage string `json:"dockerImage"`
+	RegistryURL string `json:"registryUrl"`
 	// GitHub Provider fields
 	GithubRepository string            `json:"githubRepository"`
 	GithubOwner      string            `json:"owner"`
@@ -596,7 +599,7 @@ func (c *DokployClient) CreateApplication(app Application) (*Application, error)
 		"autoDeploy":    app.AutoDeploy,
 	}
 
-	if app.RepositoryURL != "" {
+	if app.RepositoryURL != "" && app.SourceType != "docker" {
 		updatePayload["repository"] = app.RepositoryURL
 	}
 	if app.DockerfilePath != "" {
@@ -684,7 +687,7 @@ func (c *DokployClient) UpdateApplication(app Application) (*Application, error)
 		"autoDeploy":    app.AutoDeploy,
 	}
 	// Optional fields
-	if app.RepositoryURL != "" {
+	if app.RepositoryURL != "" && app.SourceType != "docker" {
 		payload["repository"] = app.RepositoryURL
 	}
 	if app.DockerfilePath != "" {
@@ -820,6 +823,19 @@ func (c *DokployClient) SaveGithubProvider(appID string, githubConfig map[string
 	}
 
 	_, err := c.doRequest("POST", "application.saveGithubProvider", payload)
+	return err
+}
+
+func (c *DokployClient) SaveDockerProvider(appID string, dockerConfig map[string]interface{}) error {
+	payload := map[string]interface{}{
+		"applicationId": appID,
+	}
+
+	for key, value := range dockerConfig {
+		payload[key] = value
+	}
+
+	_, err := c.doRequest("POST", "application.saveDockerProvider", payload)
 	return err
 }
 
